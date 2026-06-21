@@ -23,6 +23,7 @@
 //      - engine construction
 //      - farming
 //      - mining
+//      - enemy waves
 
 enum class GAME_MODE { MAIN_MENU, PAUSE_MENU, GAME_LOOP };
 

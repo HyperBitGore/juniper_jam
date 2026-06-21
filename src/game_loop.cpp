@@ -1,3 +1,4 @@
+#include "entity.hpp"
 #include "g_engine/rendering/font_renderer.hpp"
 #include "game.hpp"
 
@@ -20,8 +21,8 @@ void Game::game_loop() {
                 }
             } else {
                 std::vector<entity*> collisions = spatial_hashmap.getCollisions(&mouse);
-                if (collisions.size() > 0) {
-                    selected = collisions[0];
+                if (collisions.size() > 0 && collisions[0]->type == entity_type::UNIT) {
+                    selected = collisions[0];                    
                 } else if (selected != nullptr) {
                     selected->target = pos;
                 }
@@ -66,10 +67,10 @@ void Game::game_loop() {
         if (&entities[i] == selected) {
             triangle_r->drawBuffer();
             triangle_r->setColor({0.0f, 1.0f, 0.0f, 1.0f});
-            triangle_r->drawCircleFilled(entities[i].pos, entities[i].dimen.x);
+            triangle_r->drawQuad(entities[i].pos, entities[i].dimen.x, entities[i].dimen.y);
             triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
         } else {
-            triangle_r->addCircleFilled(entities[i].pos, entities[i].dimen.x);
+            triangle_r->addQuad(entities[i].pos, entities[i].dimen.x, entities[i].dimen.y);
         }
         spatial_hashmap.insert(&entities[i]);
     }
