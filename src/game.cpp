@@ -8,6 +8,7 @@ Game::Game(std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::
     this->triangle_r = triangle_r.get();
     this->font_r = font_r.get();
     font_map.setHashFunction(font_hash);
+    spatial_hashmap = SpatialHashmap(50, 5000);
 }
 void Game::loop() {
     switch (mode) {

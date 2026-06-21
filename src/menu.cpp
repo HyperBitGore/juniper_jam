@@ -7,7 +7,7 @@ void Game::main_menu_loop() {
     if (font) {
         font_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
         triangle_r->setColor({0.0f, 0.5f, 0.5f, 1.0f});
-        triangle_r->drawQuad({300.0f, 200.0f}, 500.0f, 100.0f);
+        triangle_r->drawQuad({250.0f, 200.0f}, 500.0f, 100.0f);
         font_r->drawText("Play", font, 300.0f, 300.0f, 96, 96);
         if (eng->getMouseLeftDown()) {
             gore::vec2 pos = eng->getMousePos();

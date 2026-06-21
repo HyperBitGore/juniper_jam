@@ -27,6 +27,9 @@ int main() {
     eng.setRenderFunction(render);
     game->addFont("resources/OpenSans-Regular.ttf", eng.getDPI());
     game->eng = &eng;
+    eng.setFrameLimit(60);
+    eng.toggleFrameLimitActive();
+    SpatialHashmap::mapBenchmark();
     while (eng.updateWindow()) {
         double dt = eng.getDelta();
         game->delta = dt;

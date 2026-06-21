@@ -69,7 +69,9 @@ set(ENGINE_SOURCES
 )
 
 # Create the executable
-add_executable(juniper_jam src/main.cpp src/game.cpp src/menu.cpp src/game_loop.cpp ${ENGINE_SOURCES})
+add_executable(juniper_jam src/main.cpp src/game.cpp src/menu.cpp src/game_loop.cpp
+    src/spatial_hashmap.cpp
+${ENGINE_SOURCES})
 
 # Include g_engine_2d headers
 target_include_directories(juniper_jam PRIVATE ${g_engine_2d_SOURCE_DIR}/include)

@@ -7,24 +7,7 @@
 #include <iostream>
 #include <g_engine/g_engine_2d.hpp>
 #include <memory>
-
-class entity {
-    public:
-        gore::vec2 pos;
-        gore::vec2 dimen;
-        int32_t img_id;
-        entity (gore::vec2 pos, gore::vec2 dimen, int32_t imd_id = -1) {
-            this->pos = pos;
-            this->dimen = dimen;
-            this->img_id = imd_id;
-        }
-        bool isColliding(const entity& e) const {
-            return (pos.x + dimen.x > e.pos.x &&         // this.right > other.left
-                    pos.x < e.pos.x + e.dimen.x &&       // this.left < other.right
-                    pos.y + dimen.y > e.pos.y &&         // this.bottom > other.top
-                    pos.y < e.pos.y + e.dimen.y);        // this.top < other.bottom
-        }
-};
+#include "spatial_hashmap.hpp"
 // Game
 //   -> update functions
 //          Main menu
@@ -32,11 +15,14 @@ class entity {
 //          Game loop
 
 // TODO
-//  - basic entity movement
 //  - pathing
 //  - construction
 //  - saving
 //  - combat
+//  - game loop
+//      - engine construction
+//      - farming
+//      - mining
 
 enum class GAME_MODE { MAIN_MENU, PAUSE_MENU, GAME_LOOP };
 
@@ -48,6 +34,7 @@ class Game {
         gore::trianglerenderer* triangle_r;
         gore::fontrenderer* font_r;
         std::vector<entity> entities;
+        SpatialHashmap spatial_hashmap;
         // fonts
         static uint32_t font_hash (std::string str) {
             if (str.size() == 0) {
