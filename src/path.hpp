@@ -11,7 +11,9 @@ struct path {
     std::vector<path_point> points;
     
 };
-
+// realistic pathfinding, entity moves along wall until it can see goal point other, if wall ends, then it will follow next wall it sees?
+//  - entity save path it walked, then walks back if it encounters dead-end
+//  - constantly raycasts in every direction and goal point direction, to look for new path
 class pathfinder {
     private:
 

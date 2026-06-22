@@ -1,5 +1,6 @@
 #include "spatial_hashmap.hpp"
 #include <cstdint>
+#include <vector>
 
 SpatialHashmap::SpatialHashmap () {
     cell_size = 25;
@@ -111,3 +112,25 @@ std::vector<entity*> SpatialHashmap::getCollisions (entity* a) {
     return collisions;
 }
 
+std::vector<entity*>* SpatialHashmap::getBucket (float x, float y) {
+    uint32_t h = hash(x, y);
+    return &buckets[h];
+}
+
+std::vector<std::vector<entity*>*> SpatialHashmap::getCellNeighbors (float x, float y) {
+    float cs = static_cast<float>(cell_size);
+    float cx = std::floor(x / cs) * cs;
+    float cy = std::floor(y / cs) * cs;
+
+    std::vector<std::vector<entity*>*> out;
+    for (int dy = -1; dy <= 1; dy++) {
+        for (int dx = -1; dx <= 1; dx++) {
+            if (dx == 0 && dy == 0) continue;
+            float nx = cx + dx * cs;
+            float ny = cy + dy * cs;
+            if (nx < 0 || ny < 0 || nx >= grid_width || ny >= grid_width) continue;
+            out.push_back(&buckets[hash(nx, ny)]);
+        }
+    }
+    return out;
+}

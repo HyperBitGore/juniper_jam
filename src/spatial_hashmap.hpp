@@ -30,6 +30,11 @@ public:
     uint32_t getGridWidth () {
         return grid_width;
     }
+    uint32_t getCellSize () {
+        return cell_size;
+    }
+    std::vector<entity*>* getBucket (float x, float y);
+    std::vector<std::vector<entity*>*> getCellNeighbors (float x, float y);
 
 
     void hashTest () {

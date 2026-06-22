@@ -1,13 +1,14 @@
 #pragma once
+#include "entity.hpp"
 #include "g_engine/rendering/font_renderer.hpp"
 #include "g_engine/rendering/image_renderer.hpp"
 #include "g_engine/rendering/primitive_renderer.hpp"
 #include "g_engine/util/shader.hpp"
 #include <filesystem>
-#include <iostream>
 #include <g_engine/g_engine_2d.hpp>
 #include <memory>
 #include "spatial_hashmap.hpp"
+#define BUTTON_TEXT_PT 16
 // Game
 //   -> update functions
 //          Main menu
@@ -16,7 +17,6 @@
 
 // TODO
 //  - pathing
-//  - construction
 //  - saving
 //  - combat
 //  - game loop
@@ -27,6 +27,19 @@
 
 enum class GAME_MODE { MAIN_MENU, PAUSE_MENU, GAME_LOOP };
 
+struct button : entity {
+    std::function<void(button*)> function; 
+    std::string text;
+    bool display;
+    button (gore::vec2 pos, std::function<void(button*)> function, std::string text) : entity(pos, { BUTTON_TEXT_PT, BUTTON_TEXT_PT }, -1, entity_type::BUTTON) {
+        this->function = function;
+        this->text = text;
+        // modify pos and dimen to match text pts
+        this->dimen.x = text.size() * BUTTON_TEXT_PT;
+        this->display = true;
+    }
+};
+
 class Game {
     private:
         // vars
@@ -34,7 +47,10 @@ class Game {
         gore::imagerenderer* image_r;
         gore::trianglerenderer* triangle_r;
         gore::fontrenderer* font_r;
+        // game loop vars
         std::vector<entity> entities;
+        uint32_t money;
+        uint32_t food;
         SpatialHashmap spatial_hashmap;
         // fonts
         static uint32_t font_hash (std::string str) {
@@ -44,9 +60,17 @@ class Game {
             return str[0] + str.size() % 1024;
         }
         gore::hashmap<gore::font, std::string> font_map;
-        void main_menu_loop();
-        void pause_menu_loop();
-        void game_loop();
+        std::vector<button> buttons; // construct these in a function called when loop changed
+        bool main_menu_loop();
+        bool pause_menu_loop();
+        bool game_loop();
+        void constructGameButtons ();
+        void constructPauseMenuButtons ();
+        void constructMainMenuButtons ();
+        // update buttons
+        double mouse_click_cooldown = 0;
+        void updateButtons (bool above_click);
+        void renderButton (button b, gore::font* font);
     public:
         double delta = 0.0;
         gore::g_engine_2d* eng;

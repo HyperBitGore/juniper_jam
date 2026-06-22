@@ -1,7 +1,7 @@
 #pragma once
 #include "g_engine/util/shader.hpp"
 
-enum class entity_type { STRUCTURE, UNIT };
+enum class entity_type { STRUCTURE, UNIT, BUTTON };
 
 class entity {
     public:
