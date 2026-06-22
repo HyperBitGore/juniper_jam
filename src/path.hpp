@@ -17,5 +17,5 @@ class pathfinder {
 
     public:
     pathfinder () = delete;
-    static path calculatePath (SpatialHashmap* map, entity e, gore::vec2 end_pos);
+    static std::vector<gore::vec2> calculatePath (SpatialHashmap* map, entity e, gore::vec2 end_pos);
 };

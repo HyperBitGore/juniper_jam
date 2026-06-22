@@ -8,8 +8,8 @@ class entity {
         gore::vec2 pos;
         gore::vec2 dimen;
         int32_t img_id;
-        gore::vec2 target = { -1.0f, -1.0f };
         entity_type type;
+        std::vector<gore::vec2> path;
         entity (gore::vec2 pos, gore::vec2 dimen, int32_t imd_id = -1, entity_type type = entity_type::UNIT) {
             this->pos = pos;
             this->dimen = dimen;

@@ -1,6 +1,7 @@
 #include "entity.hpp"
 #include "g_engine/rendering/font_renderer.hpp"
 #include "game.hpp"
+#include "path.hpp"
 
 double mouse_click_cooldown = 0.0f;
 bool render_right_click_dropdown = false;
@@ -24,7 +25,9 @@ void Game::game_loop() {
                 if (collisions.size() > 0 && collisions[0]->type == entity_type::UNIT) {
                     selected = collisions[0];                    
                 } else if (selected != nullptr) {
-                    selected->target = pos;
+                    spatial_hashmap.remove(selected);
+                    selected->path = pathfinder::calculatePath(&spatial_hashmap, *selected, pos);
+                    spatial_hashmap.insert(selected);
                 }
             }
         }
@@ -48,16 +51,15 @@ void Game::game_loop() {
     triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
     for (size_t i = 0; i < entities.size(); i++) {
         spatial_hashmap.remove(&entities[i]);
-        if (entities[i].target.x > -1.0f) {
-            gore::vec2 dif = entities[i].target - entities[i].pos;
+        if (entities[i].path.size() > 0) {
+            gore::vec2 target = entities[i].path[0];
+            gore::vec2 dif = target - entities[i].pos;
             if (std::abs(dif.x) < 2.0 && std::abs(dif.y) < 2.0) {
-                entities[i].pos = entities[i].target;
-                entities[i].target = {-1.0f, -1.0f};
+                entities[i].pos = target;
+                entities[i].path.erase(entities[i].path.begin());
             } else {
                 float angle = std::atan2f(dif.y, dif.x);
-                float angle_cos = std::cosf(angle);
-                float angle_sin = std::sinf(angle);
-                gore::vec2 change = {angle_cos * 2.0f, angle_sin * 2.0f };
+                gore::vec2 change = { std::cosf(angle) * 2.0f, std::sinf(angle) * 2.0f };
                 entities[i].pos += change;
             }
         }
