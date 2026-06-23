@@ -11,7 +11,6 @@ Game::Game(std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::
     this->font_r = font_r.get();
     font_map.setHashFunction(font_hash);
     spatial_hashmap = SpatialHashmap(50, 5000);
-    load();
     setGameMode(GAME_MODE::MAIN_MENU);
 }
 void Game::loop() {
@@ -24,7 +23,12 @@ void Game::loop() {
             above_click = pause_menu_loop();
             break;
         case GAME_MODE::GAME_LOOP:
+            cameraUpdate();
             above_click = game_loop();
+        break;
+        case GAME_MODE::LEVEL_EDITOR:
+            cameraUpdate();
+            above_click = level_editor_loop();
         break;
     }
     updateButtons(above_click);
@@ -36,10 +40,14 @@ inline uint32_t floatToBytes (float n) {
     return m;
 }
 
-void Game::save() {
-    std::ofstream file("save.save", std::ios::out | std::ios::binary);
+void Game::save(std::string path) {
+    std::ofstream file(path, std::ios::out | std::ios::binary);
     // write money and food
     size_t siz = entities.size();
+    if (level_edit) {
+        this->money = 100;
+        this->food = 24;
+    }
     file.write(reinterpret_cast<const char*>(&this->money), sizeof(this->money));
     file.write(reinterpret_cast<const char*>(&this->food), sizeof(this->food));
     file.write(reinterpret_cast<const char*>(&siz), sizeof(unsigned long));
@@ -58,10 +66,10 @@ void Game::save() {
     }
     file.close();
 }
-void Game::load() {
+void Game::load(std::string path) {
     // pathfinder::calculatePathBenchmark(&spatial_hashmap);
     entities.clear();
-    std::ifstream file("save.save", std::ios::binary);
+    std::ifstream file(path, std::ios::binary);
     if (file) {
         file.read(reinterpret_cast<char*>(&this->money), sizeof(this->money));
         file.read(reinterpret_cast<char*>(&this->food), sizeof(this->food));
@@ -82,24 +90,12 @@ void Game::load() {
         }
     }
     file.close();
-    
-    /*const float cs = 50.0f; // one cell = one wall
-    // Horizontal wall across the middle with a gap on the right (y=400, x=50..700)
-    for (int i = 0; i < 14; i++) {
-        entities.push_back({{ cs + i * cs, 8 * cs }, { cs, cs }, -1, entity_type::STRUCTURE});
-    }
-    // Vertical wall on the left forming an L with the horizontal wall (x=50, y=150..350)
-    for (int i = 0; i < 5; i++) {
-        entities.push_back({{ cs, 3 * cs + i * cs }, { cs, cs }, -1, entity_type::STRUCTURE});
-    }
-    // Small 2x2 cluster in the top-right to force routing decisions
-    entities.push_back({{ 14 * cs, 3 * cs }, { cs, cs }, -1, entity_type::STRUCTURE});
-    entities.push_back({{ 15 * cs, 3 * cs }, { cs, cs }, -1, entity_type::STRUCTURE});
-    entities.push_back({{ 14 * cs, 4 * cs }, { cs, cs }, -1, entity_type::STRUCTURE});
-    entities.push_back({{ 15 * cs, 4 * cs }, { cs, cs }, -1, entity_type::STRUCTURE});
-    this->money = 100;
-    this->food = 24;*/
 }
+
+void Game::levelEditorLoad () {
+    entities.clear();
+}
+
 void Game::setGameMode(GAME_MODE mode) {
      switch (mode) {
         case GAME_MODE::MAIN_MENU:
@@ -109,7 +105,23 @@ void Game::setGameMode(GAME_MODE mode) {
             constructPauseMenuButtons();
             break;
         case GAME_MODE::GAME_LOOP:
+            level_edit = false;
             constructGameButtons();
+        break;
+        case GAME_MODE::LEVEL_EDITOR:
+        {
+            level_edit = true;
+            // add the map boundaries
+            entity top_left({0, 0}, {5000, 50}, -1, entity_type::MAP_EDGE);
+            entity top_right({4950, 0}, {50, 5000}, -1, entity_type::MAP_EDGE);
+            entity top_left_2({0, 0}, {50, 5000}, -1, entity_type::MAP_EDGE);
+            entity bottom_left({0, 4950}, {5000, 50}, -1, entity_type::MAP_EDGE);
+            entities.push_back(top_left);
+            entities.push_back(top_right);
+            entities.push_back(top_left_2);
+            entities.push_back(bottom_left);
+            constructLevelEditorButtons();
+        }
         break;
     }
     this->mode = mode;

@@ -19,15 +19,14 @@
 
 // TODO
 //  - camera movement
-//  - level editor mode
-//  - combat
 //  - game loop
 //      - engine construction
 //      - farming
 //      - mining
+//      - combat
 //      - enemy waves
 
-enum class GAME_MODE { MAIN_MENU, PAUSE_MENU, GAME_LOOP };
+enum class GAME_MODE { MAIN_MENU, PAUSE_MENU, GAME_LOOP, LEVEL_EDITOR };
 
 struct button : entity {
     std::function<void(button*)> function; 
@@ -50,6 +49,9 @@ class Game {
         gore::trianglerenderer* triangle_r;
         gore::fontrenderer* font_r;
         // game loop vars
+        double cam_move = 0.0;
+        gore::vec2 cam_pos = {0, 0};
+        float cam_zoom = 1.0;
         std::vector<entity> entities;
         uint32_t money;
         uint32_t food;
@@ -63,12 +65,18 @@ class Game {
         }
         gore::hashmap<gore::font, std::string> font_map;
         std::vector<button> buttons; // construct these in a function called when loop changed
+        bool level_edit = false;
         bool main_menu_loop();
         bool pause_menu_loop();
         bool game_loop();
+        bool level_editor_loop();
         void constructGameButtons ();
         void constructPauseMenuButtons ();
         void constructMainMenuButtons ();
+        std::string current_save = "save.save";
+        void constructLevelEditorButtons ();
+        double camera_update = 0.0;
+        void cameraUpdate ();
         // update buttons
         double mouse_click_cooldown = 0;
         void updateButtons (bool above_click);
@@ -79,8 +87,9 @@ class Game {
         gore::g_engine_2d* eng;
         Game (std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::trianglerenderer>& triangle_r, std::unique_ptr<gore::fontrenderer>& font_r);
         void loop();
-        void save();
-        void load();
+        void save(std::string path);
+        void load(std::string path);
+        void levelEditorLoad ();
         void setGameMode(GAME_MODE mode);
         void addFont (std::filesystem::path path, uint32_t dpi);
 };

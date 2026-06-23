@@ -25,8 +25,18 @@ void Game::constructMainMenuButtons () {
     buttons.clear();
     auto play = [&](button* b) {
         setGameMode(GAME_MODE::GAME_LOOP);
+        load(current_save);
     };
-    button play_button({250.0f, 200.0f}, play, "Play");
+    auto play_level = [&](button* b) {
+        setGameMode(GAME_MODE::LEVEL_EDITOR);
+    };
+    const float gap = BUTTON_TEXT_PT + 10;
+    auto centered_x = [](std::string text) {
+        return (float)WINDOW_WIDTH / 2 - (text.size() * BUTTON_TEXT_PT) / 2.0f;
+    };
+    button play_button({centered_x("Play"), (float)WINDOW_HEIGHT / 2}, play, "Play");
     play_button.display = true;
     buttons.push_back(play_button);
+    button level_button({centered_x("Play"), (float)WINDOW_HEIGHT / 2 + gap}, play_level, "Level Editor");
+    buttons.push_back(level_button);
 }

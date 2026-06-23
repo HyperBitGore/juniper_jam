@@ -1,7 +1,7 @@
 #pragma once
 #include "g_engine/util/shader.hpp"
 
-enum class entity_type { STRUCTURE, UNIT, BUTTON };
+enum class entity_type { STRUCTURE, UNIT, BUTTON, MAP_EDGE };
 enum class action_type { ATTACK, COLLECT};
 // for ai
 struct action {
@@ -36,6 +36,8 @@ class entity {
                 return 1;
             case entity_type::BUTTON:
                 return 2;
+            case entity_type::MAP_EDGE:
+                return 3;
             }
             return 255;
         }
@@ -47,6 +49,8 @@ class entity {
                 return entity_type::UNIT;
                 case 2:
                 return entity_type::BUTTON;
+                case 3:
+                return entity_type::MAP_EDGE;
             }
             return entity_type::UNIT;
         }

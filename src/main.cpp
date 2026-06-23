@@ -5,7 +5,7 @@
 #include "game.hpp"
 #include <memory>
 
-gore::g_engine_2d eng("The Motor Must Spin", WINDOW_WIDTH, WINDOW_HEIGHT, MAINTAIN_ASPECT_RATIO_COMPONENT, gore::LogType::NONE);
+gore::g_engine_2d eng("The Motor Must Spin", WINDOW_WIDTH, WINDOW_HEIGHT, MAINTAIN_ASPECT_RATIO_COMPONENT | USE_VIEW_MATRICE, gore::LogType::NONE);
 static std::unique_ptr<Game> game;
 static std::unique_ptr<gore::trianglerenderer> triangle_r;
 static std::unique_ptr<gore::imagerenderer> image_r;
@@ -21,9 +21,9 @@ int main() {
     image_r = gore::imagerenderer::create(WINDOW_WIDTH, WINDOW_HEIGHT);
     font_r = gore::fontrenderer::create(WINDOW_WIDTH, WINDOW_HEIGHT);
     game = std::make_unique<Game>(image_r, triangle_r, font_r);
-    eng.addRenderer(triangle_r.get(), true, false, false);
-    eng.addRenderer(image_r.get(), true, false, false);
-    eng.addRenderer(font_r.get(), true, false, false);
+    eng.addRenderer(triangle_r.get(), true, true, false);
+    eng.addRenderer(image_r.get(), true, true, false);
+    eng.addRenderer(font_r.get(), true, true, false);
     eng.setRenderFunction(render);
     game->addFont("resources/OpenSans-Regular.ttf", eng.getDPI());
     game->eng = &eng;
