@@ -25,6 +25,8 @@ public:
     }
     bool insert(entity* e);
     void remove(entity* e);
+    // raycasts towards a point, returns first collision or nullptr if reached
+    entity* raycastTo (gore::vec2 start, gore::vec2 target, float width);
     entity* checkCollision (entity* e);
     std::vector<entity*> getCollisions (entity* a);
     uint32_t getGridWidth () {
@@ -35,6 +37,7 @@ public:
     }
     std::vector<entity*>* getBucket (float x, float y);
     std::vector<std::vector<entity*>*> getCellNeighbors (float x, float y);
+    std::vector<gore::vec2> getCellNeighborPositions (float x, float y);
 
 
     void hashTest () {

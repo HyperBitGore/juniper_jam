@@ -31,20 +31,20 @@ void Game::save() {
     // TODO
 }
 void Game::load() {
-    // Obstacle layout for pathfinding tests (world: 1024x768)
-    // Horizontal wall across the middle with a gap on the right
+    const float cs = 50.0f; // one cell = one wall
+    // Horizontal wall across the middle with a gap on the right (y=400, x=50..700)
     for (int i = 0; i < 14; i++) {
-        entities.push_back({{ 50.0f + i * 40.0f, 384.0f }, { 40.0f, 40.0f }, -1, entity_type::STRUCTURE});
+        entities.push_back({{ cs + i * cs, 8 * cs }, { cs, cs }, -1, entity_type::STRUCTURE});
     }
-    // Vertical wall on the left forming an L with the horizontal wall
-    for (int i = 0; i < 6; i++) {
-        entities.push_back({{ 50.0f, 144.0f + i * 40.0f }, { 40.0f, 40.0f }, -1, entity_type::STRUCTURE});
+    // Vertical wall on the left forming an L with the horizontal wall (x=50, y=150..350)
+    for (int i = 0; i < 5; i++) {
+        entities.push_back({{ cs, 3 * cs + i * cs }, { cs, cs }, -1, entity_type::STRUCTURE});
     }
-    // Small cluster in the top-right to force routing decisions
-    entities.push_back({{ 700.0f, 150.0f }, { 40.0f, 40.0f }, -1, entity_type::STRUCTURE});
-    entities.push_back({{ 740.0f, 150.0f }, { 40.0f, 40.0f }, -1, entity_type::STRUCTURE});
-    entities.push_back({{ 700.0f, 190.0f }, { 40.0f, 40.0f }, -1, entity_type::STRUCTURE});
-    entities.push_back({{ 740.0f, 190.0f }, { 40.0f, 40.0f }, -1, entity_type::STRUCTURE});
+    // Small 2x2 cluster in the top-right to force routing decisions
+    entities.push_back({{ 14 * cs, 3 * cs }, { cs, cs }, -1, entity_type::STRUCTURE});
+    entities.push_back({{ 15 * cs, 3 * cs }, { cs, cs }, -1, entity_type::STRUCTURE});
+    entities.push_back({{ 14 * cs, 4 * cs }, { cs, cs }, -1, entity_type::STRUCTURE});
+    entities.push_back({{ 15 * cs, 4 * cs }, { cs, cs }, -1, entity_type::STRUCTURE});
     this->money = 100;
     this->food = 24;
 }

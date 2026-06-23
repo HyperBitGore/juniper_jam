@@ -134,3 +134,48 @@ std::vector<std::vector<entity*>*> SpatialHashmap::getCellNeighbors (float x, fl
     }
     return out;
 }
+
+std::vector<gore::vec2> SpatialHashmap::getCellNeighborPositions (float x, float y) {
+    float cs = static_cast<float>(cell_size);
+    float cx = std::floor(x / cs) * cs;
+    float cy = std::floor(y / cs) * cs;
+    std::vector<gore::vec2> out;
+    for (int dy = -1; dy <= 1; dy++) {
+        for (int dx = -1; dx <= 1; dx++) {
+            if (dx == 0 && dy == 0) continue;
+            float nx = cx + dx * cs;
+            float ny = cy + dy * cs;
+            if (nx < 0 || ny < 0 || nx >= grid_width || ny >= grid_width) continue;
+            out.push_back({nx, ny});
+        }
+    }
+    return out;
+}
+
+
+inline bool floatEq (float a, float b, float tolerance = 1e-5f) {
+    return std::abs(a - b) <= tolerance;
+}
+
+entity* SpatialHashmap::raycastTo (gore::vec2 start, gore::vec2 target, float width) {
+    entity e(start, {width, width});
+    // loop along angle towards target and move until we hit a blocking object
+    while (!floatEq(e.pos.x, target.x, 1e-2f) && !floatEq(e.pos.y, target.y, 1e-2f)) {
+        entity* collision = checkCollision(&e);
+        if (collision != nullptr) {
+            return collision;
+        }
+        float dx = target.x - e.pos.x;
+        float dy = target.y - e.pos.y;
+        if (std::sqrtf(dx * dx + dy * dy) <= 2.0f) {
+            e.pos = target;
+            break;
+        }
+        float angle = std::atan2f(dy, dx);
+        float angle_cos = std::cosf(angle);
+        float angle_sin = std::sinf(angle);
+        gore::vec2 change = {angle_cos, angle_sin };
+        e.pos += change;
+    }
+    return nullptr;
+}
