@@ -11,6 +11,7 @@ bool Game::game_loop() {
     bool above_click = false;
     gore::font* font = font_map.get("OpenSans-Regular.ttf");
     mouse_click_cooldown += delta;
+    gore::vec2 m_pos = eng->getMousePos();
     if (mouse_click_cooldown > 0.3f) {
         if (eng->getMouseLeftDown()) {
             above_click = true;
@@ -48,6 +49,12 @@ bool Game::game_loop() {
     for (size_t i = 0; i < entities.size(); i++) {
         spatial_hashmap.remove(&entities[i]);
         if (entities[i].path.size() > 0) {
+            // draw the path
+            triangle_r->setColor({1.0f, 0.5f, 0.0f, 1.0f});
+            for (auto& j : entities[i].path) {
+                triangle_r->addQuad(j, 15, 15);
+            }
+            triangle_r->drawBuffer();
             gore::vec2 target = entities[i].path[0];
             gore::vec2 dif = target - entities[i].pos;
             if (std::abs(dif.x) < 2.0 && std::abs(dif.y) < 2.0) {
@@ -60,21 +67,20 @@ bool Game::game_loop() {
             }
         }
         if (spatial_hashmap.checkCollision(&entities[i])) {
-            std::cout << "colliding!\n";
+            std::cout << "colliding!" << entities[i].pos.x << ", " << entities[i].pos.y << "\n";
         }
         if (&entities[i] == selected) {
-            triangle_r->drawBuffer();
             triangle_r->setColor({0.0f, 1.0f, 0.0f, 1.0f});
             triangle_r->drawQuad(entities[i].pos, entities[i].dimen.x, entities[i].dimen.y);
             triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
         } else {
-            triangle_r->addQuad(entities[i].pos, entities[i].dimen.x, entities[i].dimen.y);
+            triangle_r->drawQuad(entities[i].pos, entities[i].dimen.x, entities[i].dimen.y);
         }
         spatial_hashmap.insert(&entities[i]);
     }
-    triangle_r->drawBuffer();
     font_r->drawText("Money: " + std::to_string(this->money), font, 0, 32, 24, eng->getDPI());
     font_r->drawText("Food: " + std::to_string(this->food), font, 0, 64, 24, eng->getDPI());
+    font_r->drawText("Mouse: " + std::to_string(m_pos.x) + ", " + std::to_string(m_pos.y), font, 0, 128, 24, eng->getDPI());
     return above_click;
 }
 

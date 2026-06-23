@@ -2,6 +2,7 @@
 #include "entity.hpp"
 #include "g_engine/file_loading/font_loader.hpp"
 #include "g_engine/rendering/font_renderer.hpp"
+#include "path.hpp"
 
 Game::Game(std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::trianglerenderer>& triangle_r, std::unique_ptr<gore::fontrenderer>& font_r) {
     this->image_r = image_r.get();
@@ -29,8 +30,16 @@ void Game::loop() {
 }
 void Game::save() {
     // TODO
+    std::ofstream file("save.save", std::ios::binary);
+    // write money and food
+    
+    // serialize entities
+
+    file.close();
 }
 void Game::load() {
+    // pathfinder::calculatePathBenchmark(&spatial_hashmap);
+
     const float cs = 50.0f; // one cell = one wall
     // Horizontal wall across the middle with a gap on the right (y=400, x=50..700)
     for (int i = 0; i < 14; i++) {
