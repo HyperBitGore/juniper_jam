@@ -72,6 +72,7 @@ std::vector<gore::vec2> pathBetweenCells (SpatialHashmap* map, gore::vec2 start,
 //     - treat like grid for now
 //     - once grid version working do intercell pathfinding
 // TODO
+//      - path to eight corners of cell, instead of just the top left and can skip raycast ending loop?
 //      - optimize
 std::vector<gore::vec2> findPath (SpatialHashmap* map, entity e, gore::vec2 target) {
     if (map->raycastTo(e.pos, target, e.dimen.x) == nullptr) {
@@ -93,8 +94,12 @@ std::vector<gore::vec2> findPath (SpatialHashmap* map, entity e, gore::vec2 targ
             waypoints.push_back(target);
             waypoints.push_back(least.pos);
             int idx = least.parent;
+            // now check which cell neighbor position has lowest value
             while (idx != -1) {
+                std::vector<gore::vec2> neighbors = map->getCellNeighborsCorners(closed[idx].pos.x, closed[idx].pos.y);
+                // loop through positions and decide based on lowest f cost
                 waypoints.push_back(closed[idx].pos);
+
                 idx = closed[idx].parent;
             }
             std::reverse(waypoints.begin(), waypoints.end());
@@ -113,7 +118,7 @@ std::vector<gore::vec2> findPath (SpatialHashmap* map, entity e, gore::vec2 targ
             return path;
         }
         // get neighbor cells and add to queue
-        std::vector<gore::vec2> neighbors = map->getCellNeighborPositions(least.pos.x, least.pos.y); 
+        std::vector<gore::vec2> neighbors = map->getCellNeighborPositions(least.pos.x, least.pos.y);
         for (auto& i : neighbors) {
             entity n = { i, e.dimen };
             // check if raycast to this neighbor from cur position will collide

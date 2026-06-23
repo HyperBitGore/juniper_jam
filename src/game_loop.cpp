@@ -1,5 +1,6 @@
 #include "entity.hpp"
 #include "g_engine/rendering/font_renderer.hpp"
+#include "g_engine/util/shader.hpp"
 #include "game.hpp"
 #include "path.hpp"
 #include <string>
@@ -8,6 +9,10 @@ bool render_right_click_dropdown = false;
 entity* selected = nullptr;
 
 bool Game::game_loop() {
+    if (eng->getKeyReleased(g_Escape)) {
+        this->setGameMode(GAME_MODE::PAUSE_MENU);
+        return false;
+    }
     bool above_click = false;
     gore::font* font = font_map.get("OpenSans-Regular.ttf");
     mouse_click_cooldown += delta;
@@ -85,6 +90,32 @@ bool Game::game_loop() {
 }
 
 bool Game::pause_menu_loop () {
+    if (eng->getKeyReleased(g_Escape)) {
+        this->setGameMode(GAME_MODE::GAME_LOOP);
+        return false;
+    }
+    gore::font* font = font_map.get("OpenSans-Regular.ttf");
+    triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
+    for (size_t i = 0; i < entities.size(); i++) {
+        if (entities[i].path.size() > 0) {
+            // draw the path
+            triangle_r->setColor({1.0f, 0.5f, 0.0f, 1.0f});
+            for (auto& j : entities[i].path) {
+                triangle_r->addQuad(j, 15, 15);
+            }
+            triangle_r->drawBuffer();
+        }
+        if (&entities[i] == selected) {
+            triangle_r->setColor({0.0f, 1.0f, 0.0f, 1.0f});
+            triangle_r->drawQuad(entities[i].pos, entities[i].dimen.x, entities[i].dimen.y);
+            triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
+        } else {
+            triangle_r->drawQuad(entities[i].pos, entities[i].dimen.x, entities[i].dimen.y);
+        }
+    }
+    font_r->drawText("Money: " + std::to_string(this->money), font, 0, 32, 24, eng->getDPI());
+    font_r->drawText("Food: " + std::to_string(this->food), font, 0, 64, 24, eng->getDPI());
+
     return false;
 }
 
@@ -117,5 +148,24 @@ void Game::constructGameButtons () {
     buttons.push_back(wall_button);
 }
 void Game::constructPauseMenuButtons () {
-
+    buttons.clear();
+    auto save = [&](button* b) {
+        this->save();
+    };
+    auto load = [&](button* b) {
+        this->load();
+    };
+    auto quit = [&](button* b) {
+        this->play = false;
+    };
+    const float gap = BUTTON_TEXT_PT + 10;
+    auto centered_x = [](std::string text) {
+        return (float)WINDOW_WIDTH / 2 - (text.size() * BUTTON_TEXT_PT) / 2.0f;
+    };
+    button save_btn({centered_x("Save"), (float)WINDOW_HEIGHT / 2}, save, "Save");
+    buttons.push_back(save_btn);
+    button load_btn({centered_x("Load"), (float)WINDOW_HEIGHT / 2 + gap}, load, "Load");
+    buttons.push_back(load_btn);
+    button quit_btn({centered_x("Quit"), (float)WINDOW_HEIGHT / 2 + gap * 2}, quit, "Quit");
+    buttons.push_back(quit_btn);
 }

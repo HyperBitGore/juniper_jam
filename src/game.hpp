@@ -9,6 +9,8 @@
 #include <memory>
 #include "spatial_hashmap.hpp"
 #define BUTTON_TEXT_PT 16
+#define WINDOW_WIDTH 1024
+#define WINDOW_HEIGHT 768
 // Game
 //   -> update functions
 //          Main menu
@@ -16,7 +18,8 @@
 //          Game loop
 
 // TODO
-//  - saving
+//  - camera movement
+//  - level editor mode
 //  - combat
 //  - game loop
 //      - engine construction
@@ -71,6 +74,7 @@ class Game {
         void updateButtons (bool above_click);
         void renderButton (button b, gore::font* font);
     public:
+        bool play = true;
         double delta = 0.0;
         gore::g_engine_2d* eng;
         Game (std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::trianglerenderer>& triangle_r, std::unique_ptr<gore::fontrenderer>& font_r);

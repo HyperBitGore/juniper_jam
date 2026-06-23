@@ -3,6 +3,7 @@
 #include "g_engine/file_loading/font_loader.hpp"
 #include "g_engine/rendering/font_renderer.hpp"
 #include "path.hpp"
+#include <cstdint>
 
 Game::Game(std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::trianglerenderer>& triangle_r, std::unique_ptr<gore::fontrenderer>& font_r) {
     this->image_r = image_r.get();
@@ -28,19 +29,61 @@ void Game::loop() {
     }
     updateButtons(above_click);
 }
-void Game::save() {
-    // TODO
-    std::ofstream file("save.save", std::ios::binary);
-    // write money and food
-    
-    // serialize entities
 
+inline uint32_t floatToBytes (float n) {
+    uint32_t m;
+    std::memcpy(&m, &n, sizeof(uint32_t));
+    return m;
+}
+
+void Game::save() {
+    std::ofstream file("save.save", std::ios::out | std::ios::binary);
+    // write money and food
+    size_t siz = entities.size();
+    file.write(reinterpret_cast<const char*>(&this->money), sizeof(this->money));
+    file.write(reinterpret_cast<const char*>(&this->food), sizeof(this->food));
+    file.write(reinterpret_cast<const char*>(&siz), sizeof(unsigned long));
+    // serialize entities
+    for (auto& i : entities) {
+        uint8_t v = i.typeToUint8t();
+        file.write(reinterpret_cast<const char*>(&v), sizeof(uint8_t));
+        uint32_t data = floatToBytes(i.pos.x);
+        file.write(reinterpret_cast<const char*>(&data), sizeof(float));
+        data = floatToBytes(i.pos.y);
+        file.write(reinterpret_cast<const char*>(&data), sizeof(float));
+        data = floatToBytes(i.dimen.x);
+        file.write(reinterpret_cast<const char*>(&data), sizeof(float));
+        data = floatToBytes(i.dimen.y);
+        file.write(reinterpret_cast<const char*>(&data), sizeof(float));
+    }
     file.close();
 }
 void Game::load() {
     // pathfinder::calculatePathBenchmark(&spatial_hashmap);
-
-    const float cs = 50.0f; // one cell = one wall
+    entities.clear();
+    std::ifstream file("save.save", std::ios::binary);
+    if (file) {
+        file.read(reinterpret_cast<char*>(&this->money), sizeof(this->money));
+        file.read(reinterpret_cast<char*>(&this->food), sizeof(this->food));
+        size_t siz = 0;
+        file.read(reinterpret_cast<char*>(&siz), sizeof(size_t));
+        for (size_t i = 0; i < siz; i++) {
+            entity_type type;
+            uint8_t v;
+            file.read(reinterpret_cast<char*>(&v), sizeof(uint8_t));
+            type = entity::uin8tToType(v);
+            // read the position and dimensions
+            float px, py, dx, dy;
+            file.read(reinterpret_cast<char*>(&px), sizeof(float));
+            file.read(reinterpret_cast<char*>(&py), sizeof(float));
+            file.read(reinterpret_cast<char*>(&dx), sizeof(float));
+            file.read(reinterpret_cast<char*>(&dy), sizeof(float));
+            entities.push_back({{px, py}, {dx, dy}, -1, type});
+        }
+    }
+    file.close();
+    
+    /*const float cs = 50.0f; // one cell = one wall
     // Horizontal wall across the middle with a gap on the right (y=400, x=50..700)
     for (int i = 0; i < 14; i++) {
         entities.push_back({{ cs + i * cs, 8 * cs }, { cs, cs }, -1, entity_type::STRUCTURE});
@@ -55,7 +98,7 @@ void Game::load() {
     entities.push_back({{ 14 * cs, 4 * cs }, { cs, cs }, -1, entity_type::STRUCTURE});
     entities.push_back({{ 15 * cs, 4 * cs }, { cs, cs }, -1, entity_type::STRUCTURE});
     this->money = 100;
-    this->food = 24;
+    this->food = 24;*/
 }
 void Game::setGameMode(GAME_MODE mode) {
      switch (mode) {

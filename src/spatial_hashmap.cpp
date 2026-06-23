@@ -151,7 +151,32 @@ std::vector<gore::vec2> SpatialHashmap::getCellNeighborPositions (float x, float
     }
     return out;
 }
-
+std::vector<gore::vec2> SpatialHashmap::getCellNeighborsCorners (float x, float y) {
+    float cs = static_cast<float>(cell_size);
+    float cx = std::floor(x / cs) * cs;
+    float cy = std::floor(y / cs) * cs;
+    const float edge = cs - 1.0f;
+    std::vector<gore::vec2> out;
+    for (int dy = -1; dy <= 1; dy++) {
+        for (int dx = -1; dx <= 1; dx++) {
+            if (dx == 0 && dy == 0) continue;
+            float nx = cx + dx * cs;
+            float ny = cy + dy * cs;
+            if (nx < 0 || ny < 0 || nx >= grid_width || ny >= grid_width) continue;
+            // get the corners of this cell
+            out.push_back({nx, ny});
+            out.push_back({nx + edge, ny});
+            out.push_back({nx + edge, ny + edge});
+            out.push_back({nx, ny + edge});
+            // the middle of the sides
+            out.push_back({nx + (cs / 2.0f), ny});
+            out.push_back({nx, ny + (cs / 2.0f)});
+            out.push_back({nx + edge, ny + (cs / 2.0f)});
+            out.push_back({nx + (cs / 2.0f), ny + edge});
+        }
+    }
+    return out;
+}
 
 inline bool floatEq (float a, float b, float tolerance = 1e-5f) {
     return std::abs(a - b) <= tolerance;

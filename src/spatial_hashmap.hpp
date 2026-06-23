@@ -38,6 +38,7 @@ public:
     std::vector<entity*>* getBucket (float x, float y);
     std::vector<std::vector<entity*>*> getCellNeighbors (float x, float y);
     std::vector<gore::vec2> getCellNeighborPositions (float x, float y);
+    std::vector<gore::vec2> getCellNeighborsCorners (float x, float y);
 
 
     void hashTest () {

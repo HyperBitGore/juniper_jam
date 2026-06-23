@@ -5,7 +5,7 @@
 #include "game.hpp"
 #include <memory>
 
-gore::g_engine_2d eng("The Motor Must Spin", 1024, 768, MAINTAIN_ASPECT_RATIO_COMPONENT, gore::LogType::NONE);
+gore::g_engine_2d eng("The Motor Must Spin", WINDOW_WIDTH, WINDOW_HEIGHT, MAINTAIN_ASPECT_RATIO_COMPONENT, gore::LogType::NONE);
 static std::unique_ptr<Game> game;
 static std::unique_ptr<gore::trianglerenderer> triangle_r;
 static std::unique_ptr<gore::imagerenderer> image_r;
@@ -16,10 +16,10 @@ void render () {
 }
 
 int main() {
-    std::cout << "Hello from Juniper Jam!" << std::endl;
-    triangle_r = gore::trianglerenderer::create(1024, 768);
-    image_r = gore::imagerenderer::create(1024, 768);
-    font_r = gore::fontrenderer::create(1024, 768);
+    std::cout << "Hello Juniper Jam!" << std::endl;
+    triangle_r = gore::trianglerenderer::create(WINDOW_WIDTH, WINDOW_HEIGHT);
+    image_r = gore::imagerenderer::create(WINDOW_WIDTH, WINDOW_HEIGHT);
+    font_r = gore::fontrenderer::create(WINDOW_WIDTH, WINDOW_HEIGHT);
     game = std::make_unique<Game>(image_r, triangle_r, font_r);
     eng.addRenderer(triangle_r.get(), true, false, false);
     eng.addRenderer(image_r.get(), true, false, false);
@@ -30,7 +30,7 @@ int main() {
     eng.setFrameLimit(60);
     eng.toggleFrameLimitActive();
     SpatialHashmap::mapBenchmark();
-    while (eng.updateWindow()) {
+    while (eng.updateWindow() && game->play) {
         double dt = eng.getDelta();
         game->delta = dt;
         eng.updateInputState();
