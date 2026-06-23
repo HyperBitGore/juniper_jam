@@ -16,7 +16,6 @@
 //          Game loop
 
 // TODO
-//  - pathing
 //  - saving
 //  - combat
 //  - game loop

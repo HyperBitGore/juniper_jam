@@ -72,7 +72,6 @@ std::vector<gore::vec2> pathBetweenCells (SpatialHashmap* map, gore::vec2 start,
 //     - treat like grid for now
 //     - once grid version working do intercell pathfinding
 // TODO
-//      - intercell
 //      - optimize
 std::vector<gore::vec2> findPath (SpatialHashmap* map, entity e, gore::vec2 target) {
     if (map->raycastTo(e.pos, target, e.dimen.x) == nullptr) {
@@ -118,6 +117,10 @@ std::vector<gore::vec2> findPath (SpatialHashmap* map, entity e, gore::vec2 targ
         for (auto& i : neighbors) {
             entity n = { i, e.dimen };
             // check if raycast to this neighbor from cur position will collide
+            entity* ray = map->raycastTo(least.pos, i, e.dimen.x);
+            if (ray != nullptr) {
+                continue;
+            }
             entity* collision = map->checkCollision(&n);
             if (collision != nullptr) {
                 continue;
