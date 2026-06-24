@@ -4,10 +4,12 @@
 #include "g_engine/rendering/font_renderer.hpp"
 #include "path.hpp"
 #include <cstdint>
+#include <stdexcept>
 
-Game::Game(std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::trianglerenderer>& triangle_r, std::unique_ptr<gore::fontrenderer>& font_r) {
+Game::Game(std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::trianglerenderer>& triangle_r, std::unique_ptr<gore::trianglerenderer>& static_triangle_r, std::unique_ptr<gore::fontrenderer>& font_r) {
     this->image_r = image_r.get();
     this->triangle_r = triangle_r.get();
+    this->static_triangle_r = static_triangle_r.get();
     this->font_r = font_r.get();
     font_map.setHashFunction(font_hash);
     spatial_hashmap = SpatialHashmap(50, 5000);
@@ -50,6 +52,12 @@ void Game::save(std::string path) {
     }
     file.write(reinterpret_cast<const char*>(&this->money), sizeof(this->money));
     file.write(reinterpret_cast<const char*>(&this->food), sizeof(this->food));
+    uint32_t cam = floatToBytes(cam_pos.x);
+    file.write(reinterpret_cast<const char*>(&cam), sizeof(float));
+    cam = floatToBytes(cam_pos.y);
+    file.write(reinterpret_cast<const char*>(&cam), sizeof(float));
+    cam = floatToBytes(cam_zoom);
+    file.write(reinterpret_cast<const char*>(&cam), sizeof(float));
     file.write(reinterpret_cast<const char*>(&siz), sizeof(unsigned long));
     // serialize entities
     for (auto& i : entities) {
@@ -73,6 +81,10 @@ void Game::load(std::string path) {
     if (file) {
         file.read(reinterpret_cast<char*>(&this->money), sizeof(this->money));
         file.read(reinterpret_cast<char*>(&this->food), sizeof(this->food));
+        // camera
+        file.read(reinterpret_cast<char*>(&this->cam_pos.x), sizeof(float));
+        file.read(reinterpret_cast<char*>(&this->cam_pos.y), sizeof(float));
+        file.read(reinterpret_cast<char*>(&this->cam_zoom), sizeof(float));
         size_t siz = 0;
         file.read(reinterpret_cast<char*>(&siz), sizeof(size_t));
         for (size_t i = 0; i < siz; i++) {
@@ -86,10 +98,31 @@ void Game::load(std::string path) {
             file.read(reinterpret_cast<char*>(&py), sizeof(float));
             file.read(reinterpret_cast<char*>(&dx), sizeof(float));
             file.read(reinterpret_cast<char*>(&dy), sizeof(float));
-            entities.push_back({{px, py}, {dx, dy}, -1, type});
+            entity e = constructEntity({px, py}, {dx, dy}, -1, type);
+            entities.push_back(e);
         }
     }
     file.close();
+    eng->updateView(cam_pos.x, cam_pos.y, cam_zoom);
+}
+
+void Game::new_game () {
+    entities.clear();
+    this->money = 100;
+    this->food = 24;
+    this->cam_pos = { 2300, 2300};
+    this->cam_zoom = 1.0f;
+    entity top_left({0, 0}, {5000, 50}, -1, entity_type::MAP_EDGE);
+    entity top_right({4950, 0}, {50, 5000}, -1, entity_type::MAP_EDGE);
+    entity top_left_2({0, 0}, {50, 5000}, -1, entity_type::MAP_EDGE);
+    entity bottom_left({0, 4950}, {5000, 50}, -1, entity_type::MAP_EDGE);
+    entities.push_back(top_left);
+    entities.push_back(top_right);
+    entities.push_back(top_left_2);
+    entities.push_back(bottom_left);
+    entity motor = constructEntity({2500, 2500}, {65, 65}, -1, entity_type::MOTOR);
+    entities.push_back(motor);
+    eng->updateView(cam_pos.x, cam_pos.y, cam_zoom);
 }
 
 void Game::levelEditorLoad () {
@@ -111,16 +144,10 @@ void Game::setGameMode(GAME_MODE mode) {
         case GAME_MODE::LEVEL_EDITOR:
         {
             level_edit = true;
-            // add the map boundaries
-            entity top_left({0, 0}, {5000, 50}, -1, entity_type::MAP_EDGE);
-            entity top_right({4950, 0}, {50, 5000}, -1, entity_type::MAP_EDGE);
-            entity top_left_2({0, 0}, {50, 5000}, -1, entity_type::MAP_EDGE);
-            entity bottom_left({0, 4950}, {5000, 50}, -1, entity_type::MAP_EDGE);
-            entities.push_back(top_left);
-            entities.push_back(top_right);
-            entities.push_back(top_left_2);
-            entities.push_back(bottom_left);
-            constructLevelEditorButtons();
+            new_game();
+            this->money = 1000000000;
+            this->food = 1000000000;
+            constructGameButtons();
         }
         break;
     }
@@ -134,8 +161,8 @@ void Game::addFont (std::filesystem::path location, uint32_t dpi) {
 }
 
 void Game::renderButton (button b, gore::font* font) {
-    triangle_r->setColor({0.0f, 0.5f, 1.0f, 1.0f});
-    triangle_r->drawQuad(b.pos, b.dimen.x, b.dimen.y);
+    static_triangle_r->setColor({0.0f, 0.5f, 1.0f, 1.0f});
+    static_triangle_r->drawQuad(b.pos, b.dimen.x, b.dimen.y);
     font_r->drawText(b.text, font, b.pos.x, b.pos.y + BUTTON_TEXT_PT, BUTTON_TEXT_PT, eng->getDPI());
 }
 
@@ -149,7 +176,7 @@ void Game::updateButtons (bool above_click) {
     if (mouse_click_cooldown > 0.3f) {
         if (eng->getMouseLeftDown() || above_click) {
             mouse_click_cooldown = 0.0f;
-            gore::vec2 pos = eng->getMousePos();
+            gore::vec2 pos = eng->getMousePos(false, true);
             entity mouse = { pos, {10.0f, 10.0f }};
             for (auto& i : buttons) {
                 if (i.display && i.isColliding(mouse)) {
@@ -159,4 +186,65 @@ void Game::updateButtons (bool above_click) {
             }
         }
     }
+}
+
+entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, entity_type type) {
+    entity e(pos, dimen, imd_id, type);
+    auto unit_func = [&] (entity* e) {
+        if (e->path.size() > 0) {
+            // draw the path
+            triangle_r->setColor({1.0f, 0.5f, 0.0f, 1.0f});
+            for (auto& j : e->path) {
+                triangle_r->addQuad(j, 15, 15);
+            }
+            triangle_r->drawBuffer();
+            gore::vec2 target = e->path[0];
+            gore::vec2 dif = target - e->pos;
+            if (std::abs(dif.x) < 2.0 && std::abs(dif.y) < 2.0) {
+                e->pos = target;
+                e->path.erase(e->path.begin());
+            } else {
+                float angle = std::atan2f(dif.y, dif.x);
+                gore::vec2 change = { std::cosf(angle) * 2.0f, std::sinf(angle) * 2.0f };
+                e->pos += change;
+            }
+        }
+    };
+    auto motor_func = [&](entity* e) {
+        if (food - e->level * 3 >= 0) {
+            money += e->level * 2;
+        }
+        food -= e->level * 3;
+        if (food - e->level * 3 <= 0) {
+            food = 0;
+        }
+    };
+    auto farm_func = [&](entity* e) {
+    };
+    auto enemy_func = [&](entity* e) {
+        // use its path
+    };
+    switch (type) {
+    case entity_type::STRUCTURE:
+        break;
+    case entity_type::UNIT:
+        e.update = unit_func;
+        break;
+    case entity_type::BUTTON:
+        // don't use this function for this
+        throw std::runtime_error("DONT USE CONSTRUCT ENTITY FOR BUTTONS DUMMY!");
+        break;
+    case entity_type::MAP_EDGE:
+        break;
+    case entity_type::MOTOR:
+        e.update = motor_func;
+      break;
+    case entity_type::FARM:
+        e.update = farm_func;
+      break;
+    case entity_type::MASS:
+        e.update = enemy_func;
+      break;
+    }
+    return e;
 }

@@ -204,3 +204,26 @@ entity* SpatialHashmap::raycastTo (gore::vec2 start, gore::vec2 target, float wi
     }
     return nullptr;
 }
+
+std::vector<entity*> SpatialHashmap::raycastToCollisions (gore::vec2 start, gore::vec2 target, float width) {
+    entity e(start, {width, width});
+    // loop along angle towards target and move until we hit a blocking object
+    while (!floatEq(e.pos.x, target.x, 1e-2f) && !floatEq(e.pos.y, target.y, 1e-2f)) {
+        std::vector<entity*> collisions = getCollisions(&e);
+        if (collisions.size() > 0) {
+            return collisions;
+        }
+        float dx = target.x - e.pos.x;
+        float dy = target.y - e.pos.y;
+        if (std::sqrtf(dx * dx + dy * dy) <= 2.0f) {
+            e.pos = target;
+            break;
+        }
+        float angle = std::atan2f(dy, dx);
+        float angle_cos = std::cosf(angle);
+        float angle_sin = std::sinf(angle);
+        gore::vec2 change = {angle_cos, angle_sin };
+        e.pos += change;
+    }
+    return {};
+}

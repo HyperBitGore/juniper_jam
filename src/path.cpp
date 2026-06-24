@@ -157,7 +157,7 @@ std::vector<gore::vec2> pathfinder::calculatePath (SpatialHashmap* map, entity e
     {
         entity temp = { end_pos, e.dimen};
         std::vector<entity*> collisions = map->getCollisions(&temp);
-        if (collisions.size() > 0) {
+        if (collisions.size() > 0 || end_pos.x > map->getGridWidth() || end_pos.x < 0 || end_pos.y > map->getGridWidth() || end_pos.y < 0) {
             return {};
         }
     }

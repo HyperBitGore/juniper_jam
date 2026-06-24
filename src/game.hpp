@@ -18,7 +18,6 @@
 //          Game loop
 
 // TODO
-//  - camera movement
 //  - game loop
 //      - engine construction
 //      - farming
@@ -47,14 +46,15 @@ class Game {
         GAME_MODE mode;
         gore::imagerenderer* image_r;
         gore::trianglerenderer* triangle_r;
+        gore::trianglerenderer* static_triangle_r;
         gore::fontrenderer* font_r;
         // game loop vars
         double cam_move = 0.0;
         gore::vec2 cam_pos = {0, 0};
         float cam_zoom = 1.0;
         std::vector<entity> entities;
-        uint32_t money;
-        uint32_t food;
+        int64_t money;
+        int64_t food;
         SpatialHashmap spatial_hashmap;
         // fonts
         static uint32_t font_hash (std::string str) {
@@ -69,14 +69,15 @@ class Game {
         bool main_menu_loop();
         bool pause_menu_loop();
         bool game_loop();
+        void renderSelectFrame ();
         bool level_editor_loop();
         void constructGameButtons ();
         void constructPauseMenuButtons ();
         void constructMainMenuButtons ();
         std::string current_save = "save.save";
-        void constructLevelEditorButtons ();
         double camera_update = 0.0;
         void cameraUpdate ();
+        gore::vec2 dropdown_world_pos = {0, 0};
         // update buttons
         double mouse_click_cooldown = 0;
         void updateButtons (bool above_click);
@@ -85,11 +86,13 @@ class Game {
         bool play = true;
         double delta = 0.0;
         gore::g_engine_2d* eng;
-        Game (std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::trianglerenderer>& triangle_r, std::unique_ptr<gore::fontrenderer>& font_r);
+        Game (std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::trianglerenderer>& triangle_r, std::unique_ptr<gore::trianglerenderer>& static_triangle_r, std::unique_ptr<gore::fontrenderer>& font_r);
         void loop();
+        void new_game ();
         void save(std::string path);
         void load(std::string path);
         void levelEditorLoad ();
         void setGameMode(GAME_MODE mode);
         void addFont (std::filesystem::path path, uint32_t dpi);
+        entity constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id = -1, entity_type type = entity_type::UNIT);
 };
