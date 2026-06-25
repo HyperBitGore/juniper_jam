@@ -74,3 +74,12 @@ class entity {
             return entity_type::UNIT;
         }
 };
+
+
+class entity_handler {
+    private:
+        entity* array = nullptr;
+        
+    public:
+
+};

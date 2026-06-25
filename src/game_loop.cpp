@@ -6,9 +6,8 @@
 #include <string>
 
 bool render_right_click_dropdown = false;
-entity* selected = nullptr;
-//  - freezing probably cause we insert, so probably leaving entitie pointers inside when we update array
-// TODO fix enemy combat
+//  - freezing was caused by std::vector reallocation invalidating raw entity* pointers stored in the spatial hashmap
+//    fixed by: using std::deque (stable pointers on push_back), inserting initial entities, and tracking selected through erases
 // TODO motor spin
 
 // TODO upgrading
@@ -100,6 +99,19 @@ bool Game::game_loop() {
         }
     }
     triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
+    auto drawSelectedOutline = [&](entity& e) {
+        line_r->setColor({0.0f, 1.0f, 0.0f, 1.0f});
+        const gore::vec2 pad = {5.0f, 5.0f};
+        gore::vec2 tl = e.pos - pad;
+        gore::vec2 tr = {e.pos.x + e.dimen.x + pad.x, e.pos.y - pad.y};
+        gore::vec2 br = e.pos + e.dimen + pad;
+        gore::vec2 bl = {e.pos.x - pad.x, e.pos.y + e.dimen.y + pad.y};
+        line_r->addLine(tl, tr); // top
+        line_r->addLine(tr, br); // right
+        line_r->addLine(br, bl); // bottom
+        line_r->addLine(bl, tl); // left
+        line_r->drawBuffer();
+    };
     for (size_t i = 0; i < entities.size(); i++) {
         if (entities[i].update) {
             entities[i].update(&entities[i]);
@@ -108,9 +120,8 @@ bool Game::game_loop() {
             std::cout << "colliding!" << entities[i].pos.x << ", " << entities[i].pos.y << "\n";
         }
         if (&entities[i] == selected) {
-            triangle_r->setColor({0.0f, 1.0f, 0.0f, 1.0f});
-            triangle_r->drawQuad(entities[i].pos, entities[i].dimen.x, entities[i].dimen.y);
-            triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
+            drawSelectedOutline(entities[i]);
+            if (entities[i].render) entities[i].render(&entities[i]);
         } else if (entities[i].render) {
             entities[i].render(&entities[i]);
         } else {
@@ -122,30 +133,74 @@ bool Game::game_loop() {
          if (enemies[i].update) {
             enemies[i].update(&enemies[i]);
         }
-        if (enemies[i].render) {
+        if (&enemies[i] == selected) {
+            drawSelectedOutline(enemies[i]);
+            if (enemies[i].render) enemies[i].render(&enemies[i]);
+        } else if (enemies[i].render) {
             enemies[i].render(&enemies[i]);
         } else {
             triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
             triangle_r->drawQuad(enemies[i].pos, enemies[i].dimen.x, enemies[i].dimen.y);
         }
     }
-    // cull dead enemies
-    for (int i = (int)enemies.size() - 1; i >= 0; i--) {
-        if (enemies[i].hp <= 0) {
-            spatial_hashmap.remove(&enemies[i]);
-            enemies.erase(enemies.begin() + i);
+    // cull dead enemies — track selected index so pointer stays valid after erase
+    {
+        int sel_idx = -1;
+        for (int k = 0; k < (int)enemies.size(); k++) {
+            if (&enemies[k] == selected) { sel_idx = k; break; }
+        }
+        bool selected_was_in_enemies = (sel_idx >= 0);
+        for (int i = (int)enemies.size() - 1; i >= 0; i--) {
+            if (enemies[i].hp <= 0) {
+                if (sel_idx == i) {
+                    sel_idx = -2; // mark as erased
+                } else if (sel_idx > i) {
+                    sel_idx--;
+                }
+                for (int j = 0; j < (int)enemies.size(); j++) {
+                    spatial_hashmap.remove(&enemies[j]);
+                }
+                enemies.erase(enemies.begin() + i);
+                for (int j = 0; j < (int)enemies.size(); j++) {
+                    spatial_hashmap.insert(&enemies[j]);
+                }
+            }
+        }
+        if (selected_was_in_enemies) {
+            selected = (sel_idx >= 0 && sel_idx < (int)enemies.size()) ? &enemies[sel_idx] : nullptr;
         }
     }
     // cull dead entities (units, farms, structures — not map edges or motor)
-    for (int i = (int)entities.size() - 1; i >= 0; i--) {
-        if (entities[i].hp <= 0 &&
-            entities[i].type != entity_type::MAP_EDGE &&
-            entities[i].type != entity_type::MOTOR) {
-            if (&entities[i] == selected) selected = nullptr;
-            spatial_hashmap.remove(&entities[i]);
-            entities.erase(entities.begin() + i);
-            // motor_index stays fixed since motor is always at index 4
+    {
+        int sel_idx = -1;
+        for (int k = 0; k < (int)entities.size(); k++) {
+            if (&entities[k] == selected) { sel_idx = k; break; }
         }
+        for (int i = (int)entities.size() - 1; i >= 0; i--) {
+            if (entities[i].hp <= 0 &&
+                entities[i].type != entity_type::MAP_EDGE &&
+                entities[i].type != entity_type::MOTOR) {
+                if (sel_idx == i) {
+                    sel_idx = -2; // mark as erased
+                } else if (sel_idx > i) {
+                    sel_idx--;
+                }
+                for (int j = 0; j < (int)entities.size(); j++) {
+                    spatial_hashmap.remove(&entities[j]);
+                }
+                entities.erase(entities.begin() + i);
+                for (int j = 0; j < (int)entities.size(); j++) {
+                    spatial_hashmap.insert(&entities[j]);
+                }
+                // motor_index stays fixed since motor is always at index 4
+            }
+        }
+        if (sel_idx >= 0 && sel_idx < (int)entities.size()) {
+            selected = &entities[sel_idx];
+        } else if (sel_idx == -2) {
+            selected = nullptr; // selected entity was erased
+        }
+        // if selected wasn't in entities (e.g. was an enemy), leave it unchanged
     }
     font_r->setColor({1.0f, 0.0f, 0.5f, 1.0f});
     font_r->drawText("Money: " + std::to_string(this->money), font, 0, 32, 24, eng->getDPI());

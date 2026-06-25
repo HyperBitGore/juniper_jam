@@ -4,6 +4,7 @@
 #include "g_engine/rendering/image_renderer.hpp"
 #include "g_engine/rendering/primitive_renderer.hpp"
 #include "g_engine/util/shader.hpp"
+#include <deque>
 #include <filesystem>
 #include <g_engine/g_engine_2d.hpp>
 #include <memory>
@@ -46,12 +47,15 @@ class Game {
         gore::trianglerenderer* triangle_r;
         gore::trianglerenderer* static_triangle_r;
         gore::fontrenderer* font_r;
+        gore::linerenderer* line_r;
         // game loop vars
         double cam_move = 0.0;
         gore::vec2 cam_pos = {0, 0};
         float cam_zoom = 1.0;
-        std::vector<entity> entities;
-        std::vector<entity> enemies;
+        std::deque<entity> entities;
+        std::deque<entity> enemies;
+        std::deque<entity> blades;
+        entity* selected = nullptr;
         int64_t money;
         int64_t food;
         SpatialHashmap spatial_hashmap;
@@ -89,7 +93,7 @@ class Game {
         bool play = true;
         double delta = 0.0;
         gore::g_engine_2d* eng;
-        Game (std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::trianglerenderer>& triangle_r, std::unique_ptr<gore::trianglerenderer>& static_triangle_r, std::unique_ptr<gore::fontrenderer>& font_r);
+        Game (std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::trianglerenderer>& triangle_r, std::unique_ptr<gore::trianglerenderer>& static_triangle_r, std::unique_ptr<gore::linerenderer>& line_r, std::unique_ptr<gore::fontrenderer>& font_r);
         void loop();
         void new_game ();
         void save(std::string path);

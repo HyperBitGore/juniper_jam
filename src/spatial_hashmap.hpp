@@ -36,6 +36,9 @@ public:
     uint32_t getCellSize () {
         return cell_size;
     }
+    void clear() {
+        for (auto& b : buckets) b.clear();
+    }
     std::vector<entity*>* getBucket (float x, float y);
     std::vector<std::vector<entity*>*> getCellNeighbors (float x, float y);
     std::vector<gore::vec2> getCellNeighborPositions (float x, float y);

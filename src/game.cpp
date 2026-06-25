@@ -2,16 +2,19 @@
 #include "entity.hpp"
 #include "g_engine/file_loading/font_loader.hpp"
 #include "g_engine/rendering/font_renderer.hpp"
+#include "g_engine/rendering/primitive_renderer.hpp"
 #include "path.hpp"
 #include <cstdint>
+#include <memory>
 #include <stdexcept>
 #include <random>
 
-Game::Game(std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::trianglerenderer>& triangle_r, std::unique_ptr<gore::trianglerenderer>& static_triangle_r, std::unique_ptr<gore::fontrenderer>& font_r) {
+Game::Game(std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::trianglerenderer>& triangle_r, std::unique_ptr<gore::trianglerenderer>& static_triangle_r, std::unique_ptr<gore::linerenderer>& line_r, std::unique_ptr<gore::fontrenderer>& font_r) {
     this->image_r = image_r.get();
     this->triangle_r = triangle_r.get();
     this->static_triangle_r = static_triangle_r.get();
     this->font_r = font_r.get();
+    this->line_r = line_r.get();
     font_map.setHashFunction(font_hash);
     spatial_hashmap = SpatialHashmap(50, 5000);
     setGameMode(GAME_MODE::MAIN_MENU);
@@ -80,6 +83,9 @@ void Game::save(std::string path) {
 void Game::load(std::string path) {
     pathfinder::calculatePathBenchmark(&spatial_hashmap);
     entities.clear();
+    enemies.clear();
+    selected = nullptr;
+    spatial_hashmap.clear();
     std::ifstream file(path, std::ios::binary);
     if (file) {
         file.read(reinterpret_cast<char*>(&this->money), sizeof(this->money));
@@ -106,11 +112,15 @@ void Game::load(std::string path) {
         }
     }
     file.close();
+    for (auto& e : entities) spatial_hashmap.insert(&e);
     eng->updateView(cam_pos.x, cam_pos.y, cam_zoom);
 }
 
 void Game::new_game () {
     entities.clear();
+    enemies.clear();
+    selected = nullptr;
+    spatial_hashmap.clear();
     this->money = 100;
     this->food = 24;
     this->cam_pos = { 2300, 2300};
@@ -125,6 +135,7 @@ void Game::new_game () {
     entities.push_back(bottom_left);
     entity motor = constructEntity({2500, 2500}, {65, 65}, -1, entity_type::MOTOR);
     entities.push_back(motor);
+    for (auto& e : entities) spatial_hashmap.insert(&e);
     eng->updateView(cam_pos.x, cam_pos.y, cam_zoom);
 }
 
@@ -194,21 +205,21 @@ void Game::updateButtons (bool above_click) {
 entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, entity_type type) {
     entity e(pos, dimen, imd_id, type);
     auto unit_func = [&] (entity* e) {
+        e->count++;
         const float attack_range = 30.0f;
         spatial_hashmap.remove(e);
-        // auto-attack only when idle
-        if (e->action.type == action_type::NONE) {
-            entity* enemy_in_range = spatial_hashmap.getEntityNearby(e, attack_range, entity_type::MASS);
-            if (enemy_in_range != nullptr) {
-                int index = -1;
-                for (size_t i = 0; i < enemies.size(); i++) {
-                    if (enemy_in_range == &enemies[i]) { index = i; break; }
-                }
-                e->action = { index, action_type::ATTACK };
-            }
-        }
         switch (e->action.type) {
         case action_type::NONE:
+            if (e->count % 30 == 0) {
+                entity* enemy_in_range = spatial_hashmap.getEntityNearby(e, attack_range, entity_type::MASS);
+                if (enemy_in_range != nullptr) {
+                    int index = -1;
+                    for (size_t i = 0; i < enemies.size(); i++) {
+                        if (enemy_in_range == &enemies[i]) { index = i; break; }
+                    }
+                    e->action = { index, action_type::ATTACK };
+                }
+            }
             break;
         case action_type::ATTACK:
         {
@@ -230,9 +241,10 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
                 }
             } else {
                 // repath on a timer, not every frame
-                e->count++;
-                if (e->count >= 60 || e->path.empty()) {
+                if (e->count >= 60) {
+                    spatial_hashmap.remove(target);
                     e->path = pathfinder::calculatePath(&spatial_hashmap, *e, target->pos);
+                    spatial_hashmap.insert(target);
                     e->count = 0;
                 }
             }
@@ -255,7 +267,6 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
           break;
         case action_type::RETURN:
         {
-            e->count++;
             if (e->count == 120) {
                 spatial_hashmap.remove(&entities[motor_index]);
                 spatial_hashmap.remove(&entities[e->action.target]);

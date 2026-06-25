@@ -12,6 +12,7 @@ static std::unique_ptr<gore::trianglerenderer> triangle_r;
 static std::unique_ptr<gore::trianglerenderer> static_triangle_r;
 static std::unique_ptr<gore::imagerenderer> image_r;
 static std::unique_ptr<gore::fontrenderer> font_r;
+static std::unique_ptr<gore::linerenderer> line_r;
 
 void render () {
     game->loop();
@@ -23,11 +24,13 @@ int main() {
     static_triangle_r = gore::trianglerenderer::create(WINDOW_WIDTH, WINDOW_HEIGHT);
     image_r = gore::imagerenderer::create(WINDOW_WIDTH, WINDOW_HEIGHT);
     font_r = gore::fontrenderer::create(WINDOW_WIDTH, WINDOW_HEIGHT);
-    game = std::make_unique<Game>(image_r, triangle_r, static_triangle_r, font_r);
+    line_r = gore::linerenderer::create(WINDOW_WIDTH, WINDOW_HEIGHT);
+    game = std::make_unique<Game>(image_r, triangle_r, static_triangle_r, line_r, font_r);
     eng.addRenderer(triangle_r.get(), true, true, false);
     eng.addRenderer(static_triangle_r.get(), true, false, false);
     eng.addRenderer(image_r.get(), true, true, false);
     eng.addRenderer(font_r.get(), true, false, false);
+    eng.addRenderer(line_r.get(), true, true, false);
     eng.setRenderFunction(render);
     game->addFont("resources/OpenSans-Regular.ttf", eng.getDPI());
     game->eng = &eng;
