@@ -78,7 +78,7 @@ void Game::save(std::string path) {
     file.close();
 }
 void Game::load(std::string path) {
-    //pathfinder::calculatePathBenchmark(&spatial_hashmap);
+    pathfinder::calculatePathBenchmark(&spatial_hashmap);
     entities.clear();
     std::ifstream file(path, std::ios::binary);
     if (file) {
@@ -194,11 +194,50 @@ void Game::updateButtons (bool above_click) {
 entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, entity_type type) {
     entity e(pos, dimen, imd_id, type);
     auto unit_func = [&] (entity* e) {
+        const float attack_range = 30.0f;
+        spatial_hashmap.remove(e);
+        // auto-attack only when idle
+        if (e->action.type == action_type::NONE) {
+            entity* enemy_in_range = spatial_hashmap.getEntityNearby(e, attack_range, entity_type::MASS);
+            if (enemy_in_range != nullptr) {
+                int index = -1;
+                for (size_t i = 0; i < enemies.size(); i++) {
+                    if (enemy_in_range == &enemies[i]) { index = i; break; }
+                }
+                e->action = { index, action_type::ATTACK };
+            }
+        }
         switch (e->action.type) {
         case action_type::NONE:
             break;
         case action_type::ATTACK:
-            break;
+        {
+            if (e->action.target < 0 || e->action.target >= (int)enemies.size()) {
+                e->action = {-1, action_type::NONE};
+                e->path.clear();
+                break;
+            }
+            entity* target = &enemies[e->action.target];
+            float dx = target->pos.x - e->pos.x;
+            float dy = target->pos.y - e->pos.y;
+            float dist = std::sqrtf(dx * dx + dy * dy);
+            if (dist <= attack_range) {
+                e->path.clear();
+                e->attack_cooldown -= delta;
+                if (e->attack_cooldown <= 0.0) {
+                    target->hp -= e->level;
+                    e->attack_cooldown = 1.0;
+                }
+            } else {
+                // repath on a timer, not every frame
+                e->count++;
+                if (e->count >= 60 || e->path.empty()) {
+                    e->path = pathfinder::calculatePath(&spatial_hashmap, *e, target->pos);
+                    e->count = 0;
+                }
+            }
+        }
+        break;
         case action_type::COLLECT:
             {
                 if (e->path.size() > 0 && e->action.target >= 0 && e->path[e->path.size() - 1] == entities[e->action.target].pos) {
@@ -206,11 +245,11 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
                 } else if (e->pos == entities[e->action.target].pos) {
                     e->action.type = action_type::RETURN;
                 } else {
-                    spatial_hashmap.remove(e);
                     spatial_hashmap.remove(&entities[e->action.target]);
+                    spatial_hashmap.remove(&entities[motor_index]);
                     e->path = pathfinder::calculatePath(&spatial_hashmap, *e, entities[e->action.target].pos);
-                    spatial_hashmap.insert(e);
                     spatial_hashmap.insert(&entities[e->action.target]);
+                    spatial_hashmap.insert(&entities[motor_index]);
                 }
             }
           break;
@@ -218,11 +257,9 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
         {
             e->count++;
             if (e->count == 120) {
-                spatial_hashmap.remove(e);
                 spatial_hashmap.remove(&entities[motor_index]);
                 spatial_hashmap.remove(&entities[e->action.target]);
                 e->path = pathfinder::calculatePath(&spatial_hashmap, *e, entities[motor_index].pos);
-                spatial_hashmap.insert(e);
                 spatial_hashmap.insert(&entities[motor_index]);
                 spatial_hashmap.insert(&entities[e->action.target]);
             } else if (e->count > 120) {
@@ -253,6 +290,7 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
                 e->pos += change;
             }
         }
+        spatial_hashmap.insert(e);
     };
     auto motor_func = [&](entity* e) {
         if (food - e->level * 3 >= 0) {
@@ -267,9 +305,28 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
     };
     auto enemy_func = [&](entity* e) {
         e->count++;
-        if (e->count > 60) {
-            // do a little scan around us
-            std::vector<entity*> scan = spatial_hashmap.scanAroundEntity(e, 50.0f);
+        spatial_hashmap.remove(e);
+        // scan for targets in attack range first
+        const float attack_range = 30.0f;
+        std::vector<entity*> nearby = spatial_hashmap.scanAroundEntity(e, attack_range);
+        entity* attack_target = nullptr;
+        for (auto* s : nearby) {
+            if (s->type == entity_type::UNIT || s->type == entity_type::MOTOR ||
+                s->type == entity_type::FARM || s->type == entity_type::STRUCTURE) {
+                attack_target = s;
+                break;
+            }
+        }
+        if (attack_target != nullptr) {
+            e->path.clear();
+            e->attack_cooldown -= delta;
+            if (e->attack_cooldown <= 0.0) {
+                attack_target->hp -= 1;
+                e->attack_cooldown = 1.0;
+            }
+        } else if (e->count > 60) {
+            // repath toward nearest high-priority target
+            std::vector<entity*> scan = spatial_hashmap.scanAroundEntity(e, 200.0f);
             entity* target = &entities[motor_index];
             for (size_t i = 0; i < scan.size(); i++) {
                 switch (scan[i]->type) {
@@ -294,31 +351,45 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
                   break;
                 }
             }
-            if (scan.size() == 0) {
-                e->path = { e->pos, target->pos};
-            } else {
-                spatial_hashmap.remove(target);
-                e->path = pathfinder::calculatePath(&spatial_hashmap, *e, target->pos);
-                spatial_hashmap.insert(target);
-            }
+            spatial_hashmap.remove(target);
+            e->path = pathfinder::calculatePath(&spatial_hashmap, *e, target->pos);
+            spatial_hashmap.insert(target);
             e->count = 0;
         }
         if (e->path.size() > 0) {
-            gore::vec2 target = e->path[0];
-            gore::vec2 dif = target - e->pos;
+            gore::vec2 next = e->path[0];
+            gore::vec2 dif = next - e->pos;
             if (std::abs(dif.x) < 2.0 && std::abs(dif.y) < 2.0) {
-                e->pos = target;
+                e->pos = next;
                 e->path.erase(e->path.begin());
             } else {
                 float angle = std::atan2f(dif.y, dif.x);
                 gore::vec2 change = { std::cosf(angle) * 2.0f, std::sinf(angle) * 2.0f };
                 e->pos += change;
             }
-        } 
+        }
+        spatial_hashmap.insert(e);
+    };
+    auto draw_health_bar = [&](entity* e, int max_hp) {
+        const float bar_w = e->dimen.x;
+        const float bar_h = 4.0f;
+        const float bar_y = e->pos.y - 8.0f;
+        // background
+        triangle_r->setColor({0.3f, 0.0f, 0.0f, 1.0f});
+        triangle_r->drawQuad({e->pos.x, bar_y}, bar_w, bar_h);
+        // foreground
+        float pct = std::max(0.0f, (float)e->hp / (float)max_hp);
+        triangle_r->setColor({0.0f, 1.0f, 0.0f, 1.0f});
+        triangle_r->drawQuad({e->pos.x, bar_y}, bar_w * pct, bar_h);
     };
     auto base_render = [&](entity* e) {
         triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
         triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
+    };
+    auto unit_render = [&, draw_health_bar](entity* e) {
+        triangle_r->setColor({0.2f, 0.6f, 1.0f, 1.0f});
+        triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
+        draw_health_bar(e, 10);
     };
     auto edge_render = [&](entity* e) {
         triangle_r->setColor({0.0f, 1.0f, 0.2f, 1.0f});
@@ -328,9 +399,10 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
         triangle_r->setColor({1.0f, 0.0f, 0.3f, 1.0f});
         triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
     };
-    auto mass_render = [&](entity* e) {
+    auto mass_render = [&, draw_health_bar](entity* e) {
         triangle_r->setColor({1.0f, 0.0f, 0.0f, 1.0f});
         triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
+        draw_health_bar(e, 10);
     };
     e.render = base_render;
     switch (type) {
@@ -338,6 +410,7 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
         break;
     case entity_type::UNIT:
         e.update = unit_func;
+        e.render = unit_render;
         break;
     case entity_type::BUTTON:
         // don't use this function for this

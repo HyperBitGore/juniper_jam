@@ -75,6 +75,7 @@ std::vector<gore::vec2> pathBetweenCells (SpatialHashmap* map, gore::vec2 start,
 // TODO
 //      - path to eight corners of cell, instead of just the top left and can skip raycast ending loop?
 //      - optimize
+//          - need to get path down to 100 microseconds on average (in release build)
 std::vector<gore::vec2> findPath (SpatialHashmap* map, entity e, gore::vec2 target) {
     if (map->raycastTo(e.pos, target, e.dimen.x) == nullptr) {
         return { e.pos, target };

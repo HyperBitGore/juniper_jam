@@ -233,3 +233,14 @@ std::vector<entity*> SpatialHashmap::scanAroundEntity (entity* e, float distance
     std::vector<entity*> out = getCollisions(&scan);
     return out;
 }
+
+entity* SpatialHashmap::getEntityNearby (entity* e, float distance, entity_type type) {
+    entity scan = { {e->pos.x - distance, e->pos.y - distance}, { e->dimen.x + (distance*2), e->dimen.y + (distance*2)}};
+    std::vector<entity*> out = getCollisions(&scan);
+    for (auto& i : out) {
+        if (i->type == type) {
+            return i;
+        }
+    } 
+    return nullptr;
+}

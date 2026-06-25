@@ -20,8 +20,6 @@
 // TODO
 //  - game loop
 //      - engine construction
-//      - farming
-//      - mining
 //      - combat
 //      - enemy waves
 

@@ -41,6 +41,7 @@ public:
     std::vector<gore::vec2> getCellNeighborPositions (float x, float y);
     std::vector<gore::vec2> getCellNeighborsCorners (float x, float y);
     std::vector<entity*> scanAroundEntity (entity* e, float distance);
+    entity* getEntityNearby (entity* e, float distance, entity_type type);
 
 
     void hashTest () {

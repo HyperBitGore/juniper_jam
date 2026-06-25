@@ -7,11 +7,16 @@
 
 bool render_right_click_dropdown = false;
 entity* selected = nullptr;
-// TODO enemy ai
 //  - freezing probably cause we insert, so probably leaving entitie pointers inside when we update array
-// TODO unit/enemy combat
+// TODO fix enemy combat
 // TODO motor spin
+
 // TODO upgrading
+// TODO text popups
+// TODO art
+// TODO animation
+// TODO sound/music
+// TODO balance
 bool Game::game_loop() {
     if (eng->getKeyReleased(g_Escape)) {
         this->setGameMode(GAME_MODE::PAUSE_MENU);
@@ -44,10 +49,19 @@ bool Game::game_loop() {
                     if (selected != nullptr && selected->type == entity_type::UNIT && (collisions[0]->type == entity_type::FARM || collisions[0]->type == entity_type::MASS)) {
                         // find the index
                         int index = -1;
-                        for (size_t i = 0; i < entities.size(); i++) {
-                            if (collisions[0] == &entities[i]) {
-                                index = i;
-                                break;
+                        if (collisions[0]->type == entity_type::FARM) {
+                            for (size_t i = 0; i < entities.size(); i++) {
+                                if (collisions[0] == &entities[i]) {
+                                    index = i;
+                                    break;
+                                }
+                            }
+                        } else {
+                            for (size_t i = 0; i < enemies.size(); i++) {
+                                if (collisions[0] == &enemies[i]) {
+                                    index = i;
+                                    break;
+                                }
                             }
                         }
                         if (index != -1) {
@@ -87,7 +101,6 @@ bool Game::game_loop() {
     }
     triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
     for (size_t i = 0; i < entities.size(); i++) {
-        spatial_hashmap.remove(&entities[i]);
         if (entities[i].update) {
             entities[i].update(&entities[i]);
         }
@@ -104,10 +117,8 @@ bool Game::game_loop() {
             triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
             triangle_r->drawQuad(entities[i].pos, entities[i].dimen.x, entities[i].dimen.y);
         }
-        spatial_hashmap.insert(&entities[i]);
     }
     for (size_t i = 0; i < enemies.size(); i++) {
-        spatial_hashmap.remove(&enemies[i]);
          if (enemies[i].update) {
             enemies[i].update(&enemies[i]);
         }
@@ -117,7 +128,24 @@ bool Game::game_loop() {
             triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
             triangle_r->drawQuad(enemies[i].pos, enemies[i].dimen.x, enemies[i].dimen.y);
         }
-        spatial_hashmap.insert(&enemies[i]);
+    }
+    // cull dead enemies
+    for (int i = (int)enemies.size() - 1; i >= 0; i--) {
+        if (enemies[i].hp <= 0) {
+            spatial_hashmap.remove(&enemies[i]);
+            enemies.erase(enemies.begin() + i);
+        }
+    }
+    // cull dead entities (units, farms, structures — not map edges or motor)
+    for (int i = (int)entities.size() - 1; i >= 0; i--) {
+        if (entities[i].hp <= 0 &&
+            entities[i].type != entity_type::MAP_EDGE &&
+            entities[i].type != entity_type::MOTOR) {
+            if (&entities[i] == selected) selected = nullptr;
+            spatial_hashmap.remove(&entities[i]);
+            entities.erase(entities.begin() + i);
+            // motor_index stays fixed since motor is always at index 4
+        }
     }
     font_r->setColor({1.0f, 0.0f, 0.5f, 1.0f});
     font_r->drawText("Money: " + std::to_string(this->money), font, 0, 32, 24, eng->getDPI());
@@ -245,7 +273,7 @@ void Game::constructGameButtons () {
     auto add_worker = [&](button* b) {
         if (this->money < 25) return;
         this->money -= 25;
-        entity e = constructEntity(dropdown_world_pos, {5.0f, 5.0f}, -1, entity_type::UNIT);
+        entity e = constructEntity(dropdown_world_pos, {20.0f, 20.0f}, -1, entity_type::UNIT);
         entities.push_back(e);
         spatial_hashmap.insert(&entities.back());
         for (auto& btn : buttons) btn.display = false;

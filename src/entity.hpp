@@ -20,6 +20,8 @@ class entity {
         std::function<void(entity*)> render;
         uint32_t level = 1;
         action action;
+        int hp = 10;
+        double attack_cooldown = 0.0;
         int count = 0;
         entity (gore::vec2 pos, gore::vec2 dimen, int32_t imd_id = -1, entity_type type = entity_type::UNIT) {
             this->pos = pos;
