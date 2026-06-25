@@ -7,14 +7,26 @@
 
 bool render_right_click_dropdown = false;
 entity* selected = nullptr;
-// TODO unit farming
-// TODO enemy spawning
 // TODO enemy ai
+//  - freezing probably cause we insert, so probably leaving entitie pointers inside when we update array
+// TODO unit/enemy combat
+// TODO motor spin
 // TODO upgrading
 bool Game::game_loop() {
     if (eng->getKeyReleased(g_Escape)) {
         this->setGameMode(GAME_MODE::PAUSE_MENU);
         return false;
+    }
+    enemy_spawn_timer += delta;
+    if (enemy_spawn_timer >= enemy_spawn_max) {
+        enemy_spawn_timer = 0.0;
+        entity enem = constructEntity(randomLocation(), { 20, 20 }, -1, entity_type::MASS);
+        enemies.push_back(enem);
+        spatial_hashmap.insert(&enemies[enemies.size() - 1]);
+        enemy_spawn_max -= 0.002;
+        if (enemy_spawn_max < 1.0) {
+            enemy_spawn_max = 1.0;
+        }
     }
     bool above_click = false;
     gore::font* font = font_map.get("OpenSans-Regular.ttf");
@@ -29,8 +41,27 @@ bool Game::game_loop() {
                 mouse_click_cooldown = 0.0f;
                 std::vector<entity*> collisions = spatial_hashmap.getCollisions(&mouse);
                 if (collisions.size() > 0) {
-                    selected = collisions[0];
+                    if (selected != nullptr && selected->type == entity_type::UNIT && (collisions[0]->type == entity_type::FARM || collisions[0]->type == entity_type::MASS)) {
+                        // find the index
+                        int index = -1;
+                        for (size_t i = 0; i < entities.size(); i++) {
+                            if (collisions[0] == &entities[i]) {
+                                index = i;
+                                break;
+                            }
+                        }
+                        if (index != -1) {
+                            if (collisions[0]->type == entity_type::MASS) {
+                                selected->action = { index, action_type::ATTACK};
+                            } else {
+                                selected->action = { index, action_type::COLLECT};
+                            }
+                        }
+                    } else {
+                        selected = collisions[0];
+                    }
                 } else if (selected != nullptr && selected->type == entity_type::UNIT) {
+                    selected->action = {-1, action_type::NONE};
                     spatial_hashmap.remove(selected);
                     selected->path = pathfinder::calculatePath(&spatial_hashmap, *selected, pos);
                     spatial_hashmap.insert(selected);
@@ -67,10 +98,26 @@ bool Game::game_loop() {
             triangle_r->setColor({0.0f, 1.0f, 0.0f, 1.0f});
             triangle_r->drawQuad(entities[i].pos, entities[i].dimen.x, entities[i].dimen.y);
             triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
+        } else if (entities[i].render) {
+            entities[i].render(&entities[i]);
         } else {
+            triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
             triangle_r->drawQuad(entities[i].pos, entities[i].dimen.x, entities[i].dimen.y);
         }
         spatial_hashmap.insert(&entities[i]);
+    }
+    for (size_t i = 0; i < enemies.size(); i++) {
+        spatial_hashmap.remove(&enemies[i]);
+         if (enemies[i].update) {
+            enemies[i].update(&enemies[i]);
+        }
+        if (enemies[i].render) {
+            enemies[i].render(&enemies[i]);
+        } else {
+            triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
+            triangle_r->drawQuad(enemies[i].pos, enemies[i].dimen.x, enemies[i].dimen.y);
+        }
+        spatial_hashmap.insert(&enemies[i]);
     }
     font_r->setColor({1.0f, 0.0f, 0.5f, 1.0f});
     font_r->drawText("Money: " + std::to_string(this->money), font, 0, 32, 24, eng->getDPI());
@@ -127,14 +174,17 @@ bool Game::pause_menu_loop () {
             triangle_r->setColor({0.0f, 1.0f, 0.0f, 1.0f});
             triangle_r->drawQuad(entities[i].pos, entities[i].dimen.x, entities[i].dimen.y);
             triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
+        } else if (entities[i].render) {
+            entities[i].render(&entities[i]);
         } else {
+            triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
             triangle_r->drawQuad(entities[i].pos, entities[i].dimen.x, entities[i].dimen.y);
         }
     }
     font_r->setColor({1.0f, 0.0f, 0.5f, 1.0f});
     font_r->drawText("Money: " + std::to_string(this->money), font, 0, 32, 24, eng->getDPI());
     font_r->drawText("Food: " + std::to_string(this->food), font, 0, 64, 24, eng->getDPI());
-
+    renderSelectFrame();
     return false;
 }
 
@@ -173,7 +223,16 @@ bool Game::level_editor_loop() {
     }
     triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
     for (size_t i = 0; i < entities.size(); i++) {
-        triangle_r->drawQuad(entities[i].pos, entities[i].dimen.x, entities[i].dimen.y);
+        if (&entities[i] == selected) {
+            triangle_r->setColor({0.0f, 1.0f, 0.0f, 1.0f});
+            triangle_r->drawQuad(entities[i].pos, entities[i].dimen.x, entities[i].dimen.y);
+            triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
+        } else if (entities[i].render) {
+            entities[i].render(&entities[i]);
+        } else {
+            triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
+            triangle_r->drawQuad(entities[i].pos, entities[i].dimen.x, entities[i].dimen.y);
+        }
     }
     font_r->setColor({1.0f, 0.0f, 0.5f, 1.0f});
     font_r->drawText("Level Editor", font, 0, 32, 24, eng->getDPI());

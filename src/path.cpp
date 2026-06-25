@@ -7,6 +7,7 @@
 #include <chrono>
 #include <iostream>
 #include <random>
+#include <unordered_set>
 
 inline bool floatEq (float a, float b, float tolerance = 1e-5f) {
     return std::abs(a - b) <= tolerance;
@@ -80,11 +81,24 @@ std::vector<gore::vec2> findPath (SpatialHashmap* map, entity e, gore::vec2 targ
     }
     std::priority_queue<cell> queue;
     std::vector<cell> closed;
+    std::unordered_set<uint64_t> visited;
+
+    auto cell_key = [&](gore::vec2 pos) -> uint64_t {
+        uint32_t cx = (uint32_t)(pos.x / map->getCellSize());
+        uint32_t cy = (uint32_t)(pos.y / map->getCellSize());
+        return ((uint64_t)cx << 32) | cy;
+    };
+
     cell first = create_cell(e.pos, target);
     queue.push(first);
-    while(!queue.empty()) {
+    //visited.insert(cell_key(first.pos));
+    const int MAX_NODES = 5000;
+    int nodes_expanded = 0;
+    while(!queue.empty() && nodes_expanded < MAX_NODES) {
         cell least = queue.top();
+        visited.insert(cell_key(least.pos));
         queue.pop();
+        nodes_expanded++;
         // add a closed list here eventually
         closed.push_back(least);
         // check if at target
@@ -112,9 +126,6 @@ std::vector<gore::vec2> findPath (SpatialHashmap* map, entity e, gore::vec2 targ
                     path.push_back(segment[j]);
                 }
             }
-            for (auto& i : path) {
-                std::cout << i.x << ", " << i.y << "\n";
-            }
             return path;
         }
         // get neighbor cells and add to queue
@@ -132,7 +143,7 @@ std::vector<gore::vec2> findPath (SpatialHashmap* map, entity e, gore::vec2 targ
             }
 
             // check if in closed
-            bool in_closed = false;
+            /*bool in_closed = false;
             for (auto& j : closed) {
                 if (i.x == j.pos.x && i.y == j.pos.y) {
                     in_closed = true;
@@ -141,7 +152,10 @@ std::vector<gore::vec2> findPath (SpatialHashmap* map, entity e, gore::vec2 targ
             }
             if (in_closed) {
                 continue;
-            }
+            }*/
+            uint64_t nkey = cell_key(i);
+            if (visited.count(nkey)) continue;
+            //visited.insert(nkey);
             cell c = create_cell(i, target);
             c.parent = (int)closed.size() - 1;
             c.g = least.g + 10.0f;
@@ -157,6 +171,10 @@ std::vector<gore::vec2> pathfinder::calculatePath (SpatialHashmap* map, entity e
     {
         entity temp = { end_pos, e.dimen};
         std::vector<entity*> collisions = map->getCollisions(&temp);
+        // only solid obstacles block pathing to the target; units/enemies at the target are fine
+        collisions.erase(std::remove_if(collisions.begin(), collisions.end(), [](entity* ent) {
+            return ent->type != entity_type::STRUCTURE && ent->type != entity_type::MAP_EDGE;
+        }), collisions.end());
         if (collisions.size() > 0 || end_pos.x > map->getGridWidth() || end_pos.x < 0 || end_pos.y > map->getGridWidth() || end_pos.y < 0) {
             return {};
         }
@@ -166,6 +184,11 @@ std::vector<gore::vec2> pathfinder::calculatePath (SpatialHashmap* map, entity e
     return found;
 }
 
+std::vector<gore::vec2> pathfinder::enemyPath (SpatialHashmap* map, entity e, gore::vec2 end_pos) {
+    std::vector<gore::vec2> found;
+
+    return found;
+}
 
 
 void pathfinder::calculatePathBenchmark(SpatialHashmap* map) {

@@ -40,6 +40,7 @@ public:
     std::vector<std::vector<entity*>*> getCellNeighbors (float x, float y);
     std::vector<gore::vec2> getCellNeighborPositions (float x, float y);
     std::vector<gore::vec2> getCellNeighborsCorners (float x, float y);
+    std::vector<entity*> scanAroundEntity (entity* e, float distance);
 
 
     void hashTest () {

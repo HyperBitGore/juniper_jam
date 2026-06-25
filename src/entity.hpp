@@ -2,11 +2,11 @@
 #include "g_engine/util/shader.hpp"
 
 enum class entity_type { STRUCTURE, UNIT, BUTTON, MAP_EDGE, MOTOR, FARM, MASS };
-enum class action_type { ATTACK, COLLECT};
+enum class action_type { NONE, ATTACK, COLLECT, RETURN};
 // for ai
 struct action {
-    gore::vec2 target;
-    action_type type;
+    int target = -1; // index of target entity
+    action_type type = action_type::NONE;
 };
 
 class entity {
@@ -17,7 +17,10 @@ class entity {
         entity_type type;
         std::vector<gore::vec2> path;
         std::function<void(entity*)> update;
+        std::function<void(entity*)> render;
         uint32_t level = 1;
+        action action;
+        int count = 0;
         entity (gore::vec2 pos, gore::vec2 dimen, int32_t imd_id = -1, entity_type type = entity_type::UNIT) {
             this->pos = pos;
             this->dimen = dimen;

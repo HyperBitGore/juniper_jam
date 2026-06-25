@@ -53,6 +53,7 @@ class Game {
         gore::vec2 cam_pos = {0, 0};
         float cam_zoom = 1.0;
         std::vector<entity> entities;
+        std::vector<entity> enemies;
         int64_t money;
         int64_t food;
         SpatialHashmap spatial_hashmap;
@@ -66,6 +67,9 @@ class Game {
         gore::hashmap<gore::font, std::string> font_map;
         std::vector<button> buttons; // construct these in a function called when loop changed
         bool level_edit = false;
+        int motor_index = 4;
+        double enemy_spawn_timer = 0.0;
+        double enemy_spawn_max = 10.0;
         bool main_menu_loop();
         bool pause_menu_loop();
         bool game_loop();
@@ -82,6 +86,7 @@ class Game {
         double mouse_click_cooldown = 0;
         void updateButtons (bool above_click);
         void renderButton (button b, gore::font* font);
+        gore::vec2 randomLocation ();
     public:
         bool play = true;
         double delta = 0.0;

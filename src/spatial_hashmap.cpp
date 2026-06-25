@@ -185,21 +185,21 @@ inline bool floatEq (float a, float b, float tolerance = 1e-5f) {
 entity* SpatialHashmap::raycastTo (gore::vec2 start, gore::vec2 target, float width) {
     entity e(start, {width, width});
     // loop along angle towards target and move until we hit a blocking object
-    while (!floatEq(e.pos.x, target.x, 1e-2f) && !floatEq(e.pos.y, target.y, 1e-2f)) {
+    while (!floatEq(e.pos.x, target.x, 1e-2f) || !floatEq(e.pos.y, target.y, 1e-2f)) {
         entity* collision = checkCollision(&e);
         if (collision != nullptr) {
             return collision;
         }
         float dx = target.x - e.pos.x;
         float dy = target.y - e.pos.y;
-        if (std::sqrtf(dx * dx + dy * dy) <= 2.0f) {
+        if (std::sqrtf(dx * dx + dy * dy) <= width) {
             e.pos = target;
             break;
         }
         float angle = std::atan2f(dy, dx);
         float angle_cos = std::cosf(angle);
         float angle_sin = std::sinf(angle);
-        gore::vec2 change = {angle_cos, angle_sin };
+        gore::vec2 change = {angle_cos * width, angle_sin * width };
         e.pos += change;
     }
     return nullptr;
@@ -208,22 +208,28 @@ entity* SpatialHashmap::raycastTo (gore::vec2 start, gore::vec2 target, float wi
 std::vector<entity*> SpatialHashmap::raycastToCollisions (gore::vec2 start, gore::vec2 target, float width) {
     entity e(start, {width, width});
     // loop along angle towards target and move until we hit a blocking object
-    while (!floatEq(e.pos.x, target.x, 1e-2f) && !floatEq(e.pos.y, target.y, 1e-2f)) {
+    while (!floatEq(e.pos.x, target.x, 1e-2f) || !floatEq(e.pos.y, target.y, 1e-2f)) {
         std::vector<entity*> collisions = getCollisions(&e);
         if (collisions.size() > 0) {
             return collisions;
         }
         float dx = target.x - e.pos.x;
         float dy = target.y - e.pos.y;
-        if (std::sqrtf(dx * dx + dy * dy) <= 2.0f) {
+        if (std::sqrtf(dx * dx + dy * dy) <= width) {
             e.pos = target;
             break;
         }
         float angle = std::atan2f(dy, dx);
         float angle_cos = std::cosf(angle);
         float angle_sin = std::sinf(angle);
-        gore::vec2 change = {angle_cos, angle_sin };
+        gore::vec2 change = {angle_cos * width, angle_sin * width };
         e.pos += change;
     }
     return {};
+}
+
+std::vector<entity*> SpatialHashmap::scanAroundEntity (entity* e, float distance) {
+    entity scan = { {e->pos.x - distance, e->pos.y - distance}, { e->dimen.x + (distance*2), e->dimen.y + (distance*2)}};
+    std::vector<entity*> out = getCollisions(&scan);
+    return out;
 }
