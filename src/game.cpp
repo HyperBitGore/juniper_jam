@@ -125,6 +125,9 @@ void Game::new_game () {
     this->food = 24;
     this->cam_pos = { 2300, 2300};
     this->cam_zoom = 1.0f;
+    this->rpm = 200;
+    this->enemy_spawn_timer = 0.0;
+    this->enemy_spawn_max = 10.0;
     entity top_left = constructEntity({0, 0}, {5000, 50}, -1, entity_type::MAP_EDGE);
     entity top_right = constructEntity({4950, 0}, {50, 5000}, -1, entity_type::MAP_EDGE);
     entity top_left_2 = constructEntity({0, 0}, {50, 5000}, -1, entity_type::MAP_EDGE);
@@ -252,6 +255,11 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
         break;
         case action_type::COLLECT:
             {
+                if (e->action.target < 0 || e->action.target >= (int)entities.size()) {
+                    e->action = {-1, action_type::NONE};
+                    e->path.clear();
+                    break;
+                }
                 if (e->path.size() > 0 && e->action.target >= 0 && e->path[e->path.size() - 1] == entities[e->action.target].pos) {
 
                 } else if (e->pos == entities[e->action.target].pos) {
@@ -267,6 +275,11 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
           break;
         case action_type::RETURN:
         {
+            if (e->action.target < 0 || e->action.target >= (int)entities.size()) {
+                e->action = {-1, action_type::NONE};
+                e->path.clear();
+                break;
+            }
             if (e->count == 120) {
                 spatial_hashmap.remove(&entities[motor_index]);
                 spatial_hashmap.remove(&entities[e->action.target]);
@@ -304,12 +317,51 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
         spatial_hashmap.insert(e);
     };
     auto motor_func = [&](entity* e) {
+        e->count++;
         if (food - e->level * 3 >= 0) {
             money += e->level * 2;
         }
         food -= e->level * 3;
         if (food - e->level * 3 <= 0) {
             food = 0;
+        }
+        if (e->count >= 120) {
+            this->rpm++;
+            if (this->rpm > e->level * 200) {
+                this->rpm--;
+            }
+            e->count = 0;
+        }
+        if (blades.empty()) {
+            float size = (float)e->level * 210.0f;
+            float cx = e->pos.x + e->dimen.x / 2.0f;
+            float cy = e->pos.y + e->dimen.y / 2.0f;
+            const float t = 10.0f; // wall thickness
+            entity top    = constructEntity({cx - size/2.0f, cy - size/2.0f},        {size, t},    -1, entity_type::MOTOR_BLADE);
+            entity bottom = constructEntity({cx - size/2.0f, cy + size/2.0f - t},    {size, t},    -1, entity_type::MOTOR_BLADE);
+            entity left   = constructEntity({cx - size/2.0f, cy - size/2.0f},        {t,    size}, -1, entity_type::MOTOR_BLADE);
+            entity right  = constructEntity({cx + size/2.0f - t, cy - size/2.0f},    {t,    size}, -1, entity_type::MOTOR_BLADE);
+            top.level = e->level;
+            bottom.level = e->level;
+            left.level = e->level;
+            right.level = e->level;
+            blades.push_back(top);
+            blades.push_back(bottom);
+            blades.push_back(left);
+            blades.push_back(right);
+            //for (auto& b : blades) spatial_hashmap.insert(&b);
+        }
+    };
+    auto blade_func = [&](entity* e) {
+        if (this->rpm > 0) {
+            std::vector<entity*> cols = spatial_hashmap.getCollisions(e);
+            if (!cols.empty()) {
+                // remove hp corresponding to level
+                for (auto& i : cols) {
+                    i->hp -= e->level;
+                    this->rpm -= e->level;
+                }
+            }
         }
     };
     auto farm_func = [&](entity* e) {
@@ -360,6 +412,8 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
                     break;
                 case entity_type::MASS:
                   break;
+                case entity_type::MOTOR_BLADE:
+                  break;
                 }
             }
             spatial_hashmap.remove(target);
@@ -381,7 +435,7 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
         }
         spatial_hashmap.insert(e);
     };
-    auto draw_health_bar = [&](entity* e, int max_hp) {
+    auto draw_health_bar = [&](entity* e) {
         const float bar_w = e->dimen.x;
         const float bar_h = 4.0f;
         const float bar_y = e->pos.y - 8.0f;
@@ -389,18 +443,21 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
         triangle_r->setColor({0.3f, 0.0f, 0.0f, 1.0f});
         triangle_r->drawQuad({e->pos.x, bar_y}, bar_w, bar_h);
         // foreground
-        float pct = std::max(0.0f, (float)e->hp / (float)max_hp);
+        float pct = std::max(0.0f, (float)e->hp / (float)e->max_hp);
         triangle_r->setColor({0.0f, 1.0f, 0.0f, 1.0f});
         triangle_r->drawQuad({e->pos.x, bar_y}, bar_w * pct, bar_h);
     };
-    auto base_render = [&](entity* e) {
+    auto base_render = [&, draw_health_bar](entity* e) {
         triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
         triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
+        if (e->hp < e->max_hp) {
+            draw_health_bar(e);
+        }
     };
     auto unit_render = [&, draw_health_bar](entity* e) {
         triangle_r->setColor({0.2f, 0.6f, 1.0f, 1.0f});
         triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
-        draw_health_bar(e, 10);
+        draw_health_bar(e);
     };
     auto edge_render = [&](entity* e) {
         triangle_r->setColor({0.0f, 1.0f, 0.2f, 1.0f});
@@ -413,15 +470,47 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
     auto mass_render = [&, draw_health_bar](entity* e) {
         triangle_r->setColor({1.0f, 0.0f, 0.0f, 1.0f});
         triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
-        draw_health_bar(e, 10);
+        draw_health_bar(e);
+    };
+    auto blade_render = [&](entity* e) {
+        triangle_r->setColor({1.0f, 0.0f, 0.3f, 1.0f});
+        triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
+    };
+    auto motor_select = [&](entity* e, gore::vec2 start, gore::font* font) {
+        uint32_t cost = (e->level + 1) * 100;
+        font_r->drawText("Upgrade: " + std::to_string(cost), font, start.x, start.y, 16, eng->getDPI());
+        std::string turn = ((motor_on) ? "Off" : "On");
+        font_r->drawText("Turn " + turn, font, start.x, start.y + 24, 16, eng->getDPI());
+        gore::vec2 mouse = eng->getMousePos(false, true);
+        entity mouse_e = { mouse, {10.0f, 10.0f} };
+        entity upgrade_btn = { {start.x, start.y - 16.0f}, {150.0f, 20.0f} };
+        entity turn_btn = { {start.x, start.y + 24}, {150.0f, 20.0f}};
+        bool mouse_down = eng->getMouseLeftDown();
+        if (mouse_down && upgrade_btn.isColliding(mouse_e)) {
+            if ((int64_t)cost <= money) {
+                money -= cost;
+                e->level++;
+                for (auto& b : blades) spatial_hashmap.remove(&b);
+                blades.clear();
+            }
+        } else if (e->count % 90 == 0 && mouse_down && turn_btn.isColliding(mouse_e)) {
+            this->motor_on = !motor_on;
+        }
+    };
+    auto blade_select = [&](entity* e, gore::vec2 start, gore::font* font) {
+        // render the RPM
+        font_r->drawText("RPM: " + std::to_string(rpm), font, start.x + 74, start.y, 16, eng->getDPI());
     };
     e.render = base_render;
     switch (type) {
     case entity_type::STRUCTURE:
+        e.hp = 20;
+        e.max_hp = 20;
         break;
     case entity_type::UNIT:
         e.update = unit_func;
         e.render = unit_render;
+        e.hp = 10;
         break;
     case entity_type::BUTTON:
         // don't use this function for this
@@ -429,18 +518,31 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
         break;
     case entity_type::MAP_EDGE:
         e.render = edge_render;
+        e.hp = 99999;
         break;
     case entity_type::MOTOR:
         e.update = motor_func;
         e.render = motor_render;
+        e.selection = motor_select;
+        e.hp = 1000;
+        e.max_hp = 1000;
       break;
     case entity_type::FARM:
         e.update = farm_func;
+        e.hp = 20;
+        e.max_hp = 20;
       break;
     case entity_type::MASS:
         e.update = enemy_func;
         e.render = mass_render;
+        e.hp = 10;
       break;
+    case entity_type::MOTOR_BLADE:
+        e.render = blade_render;
+        e.update = blade_func;
+        e.selection = blade_select;
+        e.hp = 999999999;
+        break;
     }
     return e;
 }

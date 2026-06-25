@@ -1,6 +1,5 @@
 #pragma once
 #include "entity.hpp"
-#include "g_engine/rendering/font_renderer.hpp"
 #include "g_engine/rendering/image_renderer.hpp"
 #include "g_engine/rendering/primitive_renderer.hpp"
 #include "g_engine/util/shader.hpp"
@@ -20,8 +19,6 @@
 
 // TODO
 //  - game loop
-//      - engine construction
-//      - combat
 //      - enemy waves
 
 enum class GAME_MODE { MAIN_MENU, PAUSE_MENU, GAME_LOOP, LEVEL_EDITOR };
@@ -54,6 +51,8 @@ class Game {
         float cam_zoom = 1.0;
         std::deque<entity> entities;
         std::deque<entity> enemies;
+        int rpm = 200;
+        bool motor_on = true;
         std::deque<entity> blades;
         entity* selected = nullptr;
         int64_t money;

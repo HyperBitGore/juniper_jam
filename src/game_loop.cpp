@@ -8,13 +8,18 @@
 bool render_right_click_dropdown = false;
 //  - freezing was caused by std::vector reallocation invalidating raw entity* pointers stored in the spatial hashmap
 //    fixed by: using std::deque (stable pointers on push_back), inserting initial entities, and tracking selected through erases
-// TODO motor spin
 
-// TODO upgrading
 // TODO text popups
 // TODO art
+//  - unit
+//  - mass
+//  - farm
+//  - wall
+//  - motor
+//  - blades
 // TODO animation
-// TODO sound/music
+// TODO sound
+// TODO spawn waves
 // TODO balance
 bool Game::game_loop() {
     if (eng->getKeyReleased(g_Escape)) {
@@ -43,41 +48,52 @@ bool Game::game_loop() {
             entity mouse = { pos, {10.0f, 10.0f }};
             if (!render_right_click_dropdown) {
                 mouse_click_cooldown = 0.0f;
-                std::vector<entity*> collisions = spatial_hashmap.getCollisions(&mouse);
-                if (collisions.size() > 0) {
-                    if (selected != nullptr && selected->type == entity_type::UNIT && (collisions[0]->type == entity_type::FARM || collisions[0]->type == entity_type::MASS)) {
-                        // find the index
-                        int index = -1;
-                        if (collisions[0]->type == entity_type::FARM) {
-                            for (size_t i = 0; i < entities.size(); i++) {
-                                if (collisions[0] == &entities[i]) {
-                                    index = i;
-                                    break;
+                // check blades first
+                bool blade_selected = false;
+                for (auto& i : blades) {
+                    if (i.isColliding(mouse)) {
+                        selected = &i;
+                        blade_selected = true;
+                        break;
+                    }
+                }
+                if (!blade_selected) {
+                    std::vector<entity*> collisions = spatial_hashmap.getCollisions(&mouse);
+                    if (collisions.size() > 0) {
+                        if (selected != nullptr && selected->type == entity_type::UNIT && (collisions[0]->type == entity_type::FARM || collisions[0]->type == entity_type::MASS)) {
+                            // find the index
+                            int index = -1;
+                            if (collisions[0]->type == entity_type::FARM) {
+                                for (size_t i = 0; i < entities.size(); i++) {
+                                    if (collisions[0] == &entities[i]) {
+                                        index = i;
+                                        break;
+                                    }
+                                }
+                            } else {
+                                for (size_t i = 0; i < enemies.size(); i++) {
+                                    if (collisions[0] == &enemies[i]) {
+                                        index = i;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (index != -1) {
+                                if (collisions[0]->type == entity_type::MASS) {
+                                    selected->action = { index, action_type::ATTACK};
+                                } else {
+                                    selected->action = { index, action_type::COLLECT};
                                 }
                             }
                         } else {
-                            for (size_t i = 0; i < enemies.size(); i++) {
-                                if (collisions[0] == &enemies[i]) {
-                                    index = i;
-                                    break;
-                                }
-                            }
+                            selected = collisions[0];
                         }
-                        if (index != -1) {
-                            if (collisions[0]->type == entity_type::MASS) {
-                                selected->action = { index, action_type::ATTACK};
-                            } else {
-                                selected->action = { index, action_type::COLLECT};
-                            }
-                        }
-                    } else {
-                        selected = collisions[0];
+                    } else if (selected != nullptr && selected->type == entity_type::UNIT) {
+                        selected->action = {-1, action_type::NONE};
+                        spatial_hashmap.remove(selected);
+                        selected->path = pathfinder::calculatePath(&spatial_hashmap, *selected, pos);
+                        spatial_hashmap.insert(selected);
                     }
-                } else if (selected != nullptr && selected->type == entity_type::UNIT) {
-                    selected->action = {-1, action_type::NONE};
-                    spatial_hashmap.remove(selected);
-                    selected->path = pathfinder::calculatePath(&spatial_hashmap, *selected, pos);
-                    spatial_hashmap.insert(selected);
                 }
             }
         }
@@ -116,9 +132,6 @@ bool Game::game_loop() {
         if (entities[i].update) {
             entities[i].update(&entities[i]);
         }
-        if (spatial_hashmap.checkCollision(&entities[i])) {
-            std::cout << "colliding!" << entities[i].pos.x << ", " << entities[i].pos.y << "\n";
-        }
         if (&entities[i] == selected) {
             drawSelectedOutline(entities[i]);
             if (entities[i].render) entities[i].render(&entities[i]);
@@ -130,7 +143,7 @@ bool Game::game_loop() {
         }
     }
     for (size_t i = 0; i < enemies.size(); i++) {
-         if (enemies[i].update) {
+        if (enemies[i].update) {
             enemies[i].update(&enemies[i]);
         }
         if (&enemies[i] == selected) {
@@ -141,6 +154,14 @@ bool Game::game_loop() {
         } else {
             triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
             triangle_r->drawQuad(enemies[i].pos, enemies[i].dimen.x, enemies[i].dimen.y);
+        }
+    }
+    for (size_t i = 0; i < blades.size(); i++) {
+        if (blades[i].update) {
+            blades[i].update(&blades[i]);
+        }
+        if (blades[i].render) {
+            blades[i].render(&blades[i]);
         }
     }
     // cull dead enemies — track selected index so pointer stays valid after erase
@@ -228,13 +249,16 @@ void Game::renderSelectFrame () {
             case entity_type::FARM:      return "Farm";
             case entity_type::MASS:      return "Mass";
             case entity_type::MAP_EDGE:  return "Map Edge";
+            case entity_type::MOTOR_BLADE: return "Motor Blade";
             default:                     return "Unknown";
         }
     };
     font_r->drawText("Selection: " + type_name(selected->type), font, 4, 654, 16, eng->getDPI());
     font_r->drawText("Level: " + std::to_string(selected->level), font, 4, 676, 16, eng->getDPI());
     font_r->drawText("Pos: " + std::to_string((int)selected->pos.x) + ", " + std::to_string((int)selected->pos.y), font, 4, 698, 16, eng->getDPI());
-
+    if (selected && selected->selection) {
+        selected->selection(selected, { 200, 654 }, font);
+    }
 }
 
 bool Game::pause_menu_loop () {

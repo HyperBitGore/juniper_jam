@@ -182,13 +182,22 @@ inline bool floatEq (float a, float b, float tolerance = 1e-5f) {
     return std::abs(a - b) <= tolerance;
 }
 
-entity* SpatialHashmap::raycastTo (gore::vec2 start, gore::vec2 target, float width) {
+entity* SpatialHashmap::raycastTo (gore::vec2 start, gore::vec2 target, float width, std::vector<entity_type> skip_types) {
     entity e(start, {width, width});
     // loop along angle towards target and move until we hit a blocking object
     while (!floatEq(e.pos.x, target.x, 1e-2f) || !floatEq(e.pos.y, target.y, 1e-2f)) {
         entity* collision = checkCollision(&e);
         if (collision != nullptr) {
-            return collision;
+            bool skip = false;
+            for (auto& i : skip_types) {
+                if (collision->type == i) {
+                    skip = true;
+                    break;
+                }
+            }
+            if (!skip) {
+                return collision;
+            }
         }
         float dx = target.x - e.pos.x;
         float dy = target.y - e.pos.y;

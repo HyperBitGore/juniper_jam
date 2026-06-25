@@ -1,7 +1,8 @@
 #pragma once
 #include "g_engine/util/shader.hpp"
+#include "g_engine/rendering/font_renderer.hpp"
 
-enum class entity_type { STRUCTURE, UNIT, BUTTON, MAP_EDGE, MOTOR, FARM, MASS };
+enum class entity_type { STRUCTURE, UNIT, BUTTON, MAP_EDGE, MOTOR, FARM, MASS, MOTOR_BLADE };
 enum class action_type { NONE, ATTACK, COLLECT, RETURN};
 // for ai
 struct action {
@@ -18,9 +19,11 @@ class entity {
         std::vector<gore::vec2> path;
         std::function<void(entity*)> update;
         std::function<void(entity*)> render;
+        std::function<void(entity*, gore::vec2, gore::font*)> selection;
         uint32_t level = 1;
         action action;
         int hp = 10;
+        int max_hp = 10;
         double attack_cooldown = 0.0;
         int count = 0;
         entity (gore::vec2 pos, gore::vec2 dimen, int32_t imd_id = -1, entity_type type = entity_type::UNIT) {
@@ -51,6 +54,8 @@ class entity {
                 return 5;
             case entity_type::MASS:
                 return 6;
+            case entity_type::MOTOR_BLADE:
+                return 7;
             }
             return 255;
         }
@@ -70,6 +75,8 @@ class entity {
                 return entity_type::FARM;
                 case 6:
                 return entity_type::MASS;
+                case 7:
+                return entity_type::MOTOR_BLADE;
             }
             return entity_type::UNIT;
         }

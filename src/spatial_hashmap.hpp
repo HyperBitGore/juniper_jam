@@ -26,7 +26,7 @@ public:
     bool insert(entity* e);
     void remove(entity* e);
     // raycasts towards a point, returns first collision or nullptr if reached
-    entity* raycastTo (gore::vec2 start, gore::vec2 target, float width);
+    entity* raycastTo (gore::vec2 start, gore::vec2 target, float width, std::vector<entity_type> skip_types = {});
     std::vector<entity*> raycastToCollisions (gore::vec2 start, gore::vec2 target, float width);
     entity* checkCollision (entity* e);
     std::vector<entity*> getCollisions (entity* a);
