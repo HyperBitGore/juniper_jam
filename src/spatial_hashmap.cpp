@@ -102,11 +102,14 @@ entity* SpatialHashmap::checkCollision (entity* e) {
 
 std::vector<entity*> SpatialHashmap::getCollisions (entity* a) {
     std::vector<entity*> collisions;
+    std::unordered_set<entity*> seen;
     std::vector<uint32_t> hashes = calculateHashes(a);
     for (auto& i : hashes) {
-        entity* b = checkBucketCollision(buckets[i], a);
-        if (b && b != a) {
-            collisions.push_back(b);
+        for (auto& b : buckets[i]) {
+            if (b != a && seen.find(b) == seen.end() && a->isColliding(*b)) {
+                seen.insert(b);
+                collisions.push_back(b);
+            }
         }
     }
     return collisions;

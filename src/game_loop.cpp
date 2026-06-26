@@ -9,19 +9,12 @@ bool render_right_click_dropdown = false;
 //  - freezing was caused by std::vector reallocation invalidating raw entity* pointers stored in the spatial hashmap
 //    fixed by: using std::deque (stable pointers on push_back), inserting initial entities, and tracking selected through erases
 
-// TODO balance
-//      - make rpm consume money
-//      - max out build area size, but can increase RPM max
-//      - upgrade units
-//      - make enemies choose to path around walls rather than kill them first
-// TODO sound
-// TODO polish text and UI
 bool Game::game_loop() {
     if (eng->getKeyReleased(g_Escape)) {
         this->setGameMode(GAME_MODE::PAUSE_MENU);
         return false;
     }
-   enemySpawning();
+    enemySpawning();
     bool above_click = false;
     gore::font* font = font_map.get("OpenSans-Regular.ttf");
     mouse_click_cooldown += delta;
@@ -30,54 +23,63 @@ bool Game::game_loop() {
         if (eng->getMouseLeftDown()) {
             above_click = true;
             gore::vec2 pos = eng->getMousePos();
-            entity mouse = { pos, {10.0f, 10.0f }};
-            if (!render_right_click_dropdown) {
-                mouse_click_cooldown = 0.0f;
-                // check blades first
-                bool blade_selected = false;
-                for (auto& i : blades) {
-                    if (i.isColliding(mouse)) {
-                        selected = &i;
-                        blade_selected = true;
-                        break;
+            gore::vec2 m_pos = eng->getMousePos(false, true);
+            if (m_pos.y < 630) {
+                entity mouse = { pos, {10.0f, 10.0f }};
+                if (!render_right_click_dropdown) {
+                    mouse_click_cooldown = 0.0f;
+                    // check blades first
+                    bool blade_selected = false;
+                    for (auto& i : blades) {
+                        if (i.isColliding(mouse)) {
+                            selected = &i;
+                            blade_selected = true;
+                            break;
+                        }
                     }
-                }
-                if (!blade_selected) {
-                    std::vector<entity*> collisions = spatial_hashmap.getCollisions(&mouse);
-                    if (collisions.size() > 0) {
-                        if (selected != nullptr && selected->type == entity_type::UNIT && (collisions[0]->type == entity_type::FARM || collisions[0]->type == entity_type::MASS)) {
-                            // find the index
-                            int index = -1;
-                            if (collisions[0]->type == entity_type::FARM) {
-                                for (size_t i = 0; i < entities.size(); i++) {
-                                    if (collisions[0] == &entities[i]) {
-                                        index = i;
-                                        break;
+                    if (!blade_selected) {
+                        std::vector<entity*> collisions = spatial_hashmap.getCollisions(&mouse);
+                        if (collisions.size() > 0) {
+                            if (selected != nullptr && selected->type == entity_type::UNIT && (collisions[0]->type == entity_type::FARM || collisions[0]->type == entity_type::MASS)) {
+                                // find the index
+                                int index = -1;
+                                if (collisions[0]->type == entity_type::FARM) {
+                                    for (size_t i = 0; i < entities.size(); i++) {
+                                        if (collisions[0] == &entities[i]) {
+                                            index = i;
+                                            break;
+                                        }
+                                    }
+                                } else {
+                                    for (size_t i = 0; i < enemies.size(); i++) {
+                                        if (collisions[0] == &enemies[i]) {
+                                            index = i;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (index != -1) {
+                                    if (collisions[0]->type == entity_type::MASS) {
+                                        selected->action = { index, action_type::ATTACK};
+                                    } else {
+                                        selected->action = { index, action_type::COLLECT};
                                     }
                                 }
                             } else {
-                                for (size_t i = 0; i < enemies.size(); i++) {
-                                    if (collisions[0] == &enemies[i]) {
-                                        index = i;
+                                selected = collisions[0];
+                                for (size_t i = 0; i < collisions.size(); i++) {
+                                    if (collisions[i]->type == entity_type::UNIT) {
+                                        selected = collisions[i];
                                         break;
                                     }
                                 }
                             }
-                            if (index != -1) {
-                                if (collisions[0]->type == entity_type::MASS) {
-                                    selected->action = { index, action_type::ATTACK};
-                                } else {
-                                    selected->action = { index, action_type::COLLECT};
-                                }
-                            }
-                        } else {
-                            selected = collisions[0];
+                        } else if (selected != nullptr && selected->type == entity_type::UNIT) {
+                            selected->action = {-1, action_type::NONE};
+                            spatial_hashmap.remove(selected);
+                            selected->path = pathfinder::calculatePath(&spatial_hashmap, *selected, pos);
+                            spatial_hashmap.insert(selected);
                         }
-                    } else if (selected != nullptr && selected->type == entity_type::UNIT) {
-                        selected->action = {-1, action_type::NONE};
-                        spatial_hashmap.remove(selected);
-                        selected->path = pathfinder::calculatePath(&spatial_hashmap, *selected, pos);
-                        spatial_hashmap.insert(selected);
                     }
                 }
             }
@@ -150,6 +152,7 @@ bool Game::game_loop() {
             blades[i].render(&blades[i]);
         }
     }
+    image_r->drawBuffer();
     // cull dead enemies — track selected index so pointer stays valid after erase
     {
         int sel_idx = -1;
@@ -166,6 +169,13 @@ bool Game::game_loop() {
                 }
                 for (int j = 0; j < (int)enemies.size(); j++) {
                     spatial_hashmap.remove(&enemies[j]);
+                }
+                for (auto& j : entities) {
+                    if (j.action.target == i && j.action.type == action_type::ATTACK) {
+                        j.action.type = action_type::NONE;
+                        j.action.target = -1;
+                        break;
+                    }
                 }
                 enemies.erase(enemies.begin() + i);
                 for (int j = 0; j < (int)enemies.size(); j++) {
@@ -200,6 +210,9 @@ bool Game::game_loop() {
                     spatial_hashmap.insert(&entities[j]);
                 }
                 // motor_index stays fixed since motor is always at index 4
+            } else if (entities[i].hp <= 0 && entities[i].type == entity_type::MOTOR) {
+                setGameMode(GAME_MODE::LOSE_SCREEN);
+                return false;
             }
         }
         if (sel_idx >= 0 && sel_idx < (int)entities.size()) {
@@ -223,7 +236,7 @@ bool Game::game_loop() {
 void Game::renderSelectFrame () {
     gore::font* font = font_map.get("OpenSans-Regular.ttf");
     static_triangle_r->setColor({0.0f, 0.5f, 1.0f, 1.0f});
-    static_triangle_r->drawQuad({0, 630}, 400, 138);
+    static_triangle_r->drawQuad({0, 630}, 1200, 138);
     font_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
     if (selected == nullptr) {
         font_r->drawText("Selection: none", font, 4, 654, 16, eng->getDPI());
@@ -255,31 +268,55 @@ bool Game::pause_menu_loop () {
         return false;
     }
     gore::font* font = font_map.get("OpenSans-Regular.ttf");
-    triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
+    renderBackground();
+    eng->enable(GL_BLEND);
+    auto drawSelectedOutline = [&](entity& e) {
+        line_r->setColor({0.0f, 1.0f, 0.0f, 1.0f});
+        const gore::vec2 pad = {5.0f, 5.0f};
+        gore::vec2 tl = e.pos - pad;
+        gore::vec2 tr = {e.pos.x + e.dimen.x + pad.x, e.pos.y - pad.y};
+        gore::vec2 br = e.pos + e.dimen + pad;
+        gore::vec2 bl = {e.pos.x - pad.x, e.pos.y + e.dimen.y + pad.y};
+        line_r->addLine(tl, tr);
+        line_r->addLine(tr, br);
+        line_r->addLine(br, bl);
+        line_r->addLine(bl, tl);
+        line_r->drawBuffer();
+    };
     for (size_t i = 0; i < entities.size(); i++) {
-        if (entities[i].path.size() > 0) {
-            // draw the path
-            triangle_r->setColor({1.0f, 0.5f, 0.0f, 1.0f});
-            for (auto& j : entities[i].path) {
-                triangle_r->addQuad(j, 15, 15);
-            }
-            triangle_r->drawBuffer();
-        }
         if (&entities[i] == selected) {
-            triangle_r->setColor({0.0f, 1.0f, 0.0f, 1.0f});
-            triangle_r->drawQuad(entities[i].pos, entities[i].dimen.x, entities[i].dimen.y);
-            triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
-        } else if (entities[i].render) {
-            entities[i].render(&entities[i]);
-        } else {
+            drawSelectedOutline(entities[i]);
+        }
+        if (entities[i].render) entities[i].render(&entities[i]);
+        else {
             triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
             triangle_r->drawQuad(entities[i].pos, entities[i].dimen.x, entities[i].dimen.y);
         }
     }
+    for (size_t i = 0; i < enemies.size(); i++) {
+        if (&enemies[i] == selected) drawSelectedOutline(enemies[i]);
+        if (enemies[i].render) enemies[i].render(&enemies[i]);
+        else {
+            triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
+            triangle_r->drawQuad(enemies[i].pos, enemies[i].dimen.x, enemies[i].dimen.y);
+        }
+    }
+    for (size_t i = 0; i < blades.size(); i++) {
+        if (blades[i].render) blades[i].render(&blades[i]);
+    }
+    image_r->drawBuffer();
+    // HUD
     font_r->setColor({1.0f, 0.0f, 0.5f, 1.0f});
     font_r->drawText("Money: " + std::to_string(this->money), font, 0, 32, 24, eng->getDPI());
     font_r->drawText("Food: " + std::to_string(this->food), font, 0, 64, 24, eng->getDPI());
+    // paused overlay
+   /** static_triangle_r->setColor({0.0f, 0.0f, 0.0f, 0.5f});
+    static_triangle_r->drawQuad({0, 0}, (float)eng->getWidth(), (float)eng->getHeight());
+    static_font_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
+    static_font_r->drawText("PAUSED", font, (float)eng->getWidth() / 2.0f - 60.0f, (float)eng->getHeight() / 2.0f, 32, eng->getDPI());*/
     renderSelectFrame();
+    renderPopups();
+    eng->disable(GL_BLEND);
     return false;
 }
 
@@ -338,6 +375,7 @@ bool Game::level_editor_loop() {
 void Game::constructGameButtons () {
     buttons.clear();
     auto add_worker = [&](button* b) {
+        if (!insideBlades(dropdown_world_pos)) return;
         if (this->money < 25) return;
         this->money -= 25;
         entity e = constructEntity(dropdown_world_pos, {20.0f, 20.0f}, -1, entity_type::UNIT);
@@ -351,6 +389,7 @@ void Game::constructGameButtons () {
     buttons.push_back(worker_button);
 
     auto add_wall = [&](button* b) {
+        if (!insideBlades(dropdown_world_pos)) return;
         if (this->money < 50) return;
         this->money -= 50;
         entity e = constructEntity( dropdown_world_pos, {50.0f, 50.0f}, -1, entity_type::STRUCTURE );
@@ -363,6 +402,7 @@ void Game::constructGameButtons () {
     wall_button.display = false;
     buttons.push_back(wall_button);
     auto add_farm = [&](button* b) {
+        if (!insideBlades(dropdown_world_pos)) return;
         if (this->money < 35) return;
         this->money -= 35;
         entity e = constructEntity( dropdown_world_pos, {34.0f, 34.0f}, -1, entity_type::FARM );
@@ -384,7 +424,7 @@ void Game::constructPauseMenuButtons () {
         this->load(current_save);
     };
     auto quit = [&](button* b) {
-        this->play = false;
+        setGameMode(GAME_MODE::MAIN_MENU);
     };
     const float gap = BUTTON_TEXT_PT + 10;
     auto centered_x = [](std::string text) {

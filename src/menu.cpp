@@ -3,6 +3,8 @@
 entity play_button = { {300.0f, 200.0f}, {500.0f, 200.0f}};
 
 bool Game::main_menu_loop() {
+    eng->updateView(cam_pos.x, cam_pos.y, cam_zoom);
+    renderBackground();
     /*gore::font* font = font_map.get("OpenSans-Regular.ttf");
     if (font) {
         font_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
@@ -43,6 +45,17 @@ void Game::constructMainMenuButtons () {
     buttons.push_back(play_button);
     button load_button({centered_x("New Game"), (float)WINDOW_HEIGHT / 2 + gap}, play, "Load Game");
     buttons.push_back(load_button);
-    button level_button({centered_x("New Game"), (float)WINDOW_HEIGHT / 2 + gap * 2}, play_level, "Level Editor");
-    buttons.push_back(level_button);
+    //button level_button({centered_x("New Game"), (float)WINDOW_HEIGHT / 2 + gap * 2}, play_level, "Level Editor");
+    // buttons.push_back(level_button);
+}
+
+bool Game::lose_loop() {
+    gore::font* font = font_map.get("OpenSans-Regular.ttf");
+    font_r->drawText("YOU LOSE!", font, 300.0f, 300.0f, 96, 96);
+    cam_move += delta;
+    if (cam_move > 2.0) {
+        cam_move = 0.0;
+        setGameMode(GAME_MODE::MAIN_MENU);
+    }
+    return false;
 }

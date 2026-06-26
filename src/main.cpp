@@ -1,12 +1,15 @@
+#include "g_engine/audio/audio.hpp"
 #include "g_engine/file_loading/font_loader.hpp"
 #include "g_engine/g_engine_2d.hpp"
 #include "g_engine/rendering/font_renderer.hpp"
 #include "g_engine/rendering/image_renderer.hpp"
 #include "g_engine/rendering/primitive_renderer.hpp"
+#include "g_engine/util/logging.hpp"
 #include "game.hpp"
 #include <memory>
 
 gore::g_engine_2d eng("The Motor Must Spin", WINDOW_WIDTH, WINDOW_HEIGHT, MAINTAIN_ASPECT_RATIO_COMPONENT | USE_VIEW_MATRICE, gore::LogType::NONE);
+gore::audioplayer ap(2, gore::LogType::NONE);
 static std::unique_ptr<Game> game;
 static std::unique_ptr<gore::trianglerenderer> triangle_r;
 static std::unique_ptr<gore::trianglerenderer> static_triangle_r;
@@ -27,7 +30,7 @@ int main() {
     font_r = gore::fontrenderer::create(WINDOW_WIDTH, WINDOW_HEIGHT);
     static_font_r = gore::fontrenderer::create(WINDOW_WIDTH, WINDOW_HEIGHT);
     line_r = gore::linerenderer::create(WINDOW_WIDTH, WINDOW_HEIGHT);
-    game = std::make_unique<Game>(image_r, triangle_r, static_triangle_r, line_r, font_r, static_font_r);
+    game = std::make_unique<Game>(image_r, triangle_r, static_triangle_r, line_r, font_r, static_font_r, &ap);
     eng.addRenderer(triangle_r.get(), true, true, false);
     eng.addRenderer(static_triangle_r.get(), true, false, false);
     eng.addRenderer(image_r.get(), true, true, false);

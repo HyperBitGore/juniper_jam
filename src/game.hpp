@@ -1,5 +1,6 @@
 #pragma once
 #include "entity.hpp"
+#include "g_engine/audio/audio.hpp"
 #include "g_engine/rendering/font_renderer.hpp"
 #include "g_engine/rendering/image_renderer.hpp"
 #include "g_engine/rendering/primitive_renderer.hpp"
@@ -23,7 +24,7 @@
 //  - game loop
 //      - enemy waves
 
-enum class GAME_MODE { MAIN_MENU, PAUSE_MENU, GAME_LOOP, LEVEL_EDITOR };
+enum class GAME_MODE { MAIN_MENU, PAUSE_MENU, GAME_LOOP, LEVEL_EDITOR, LOSE_SCREEN };
 
 struct button : entity {
     std::function<void(button*)> function; 
@@ -48,6 +49,7 @@ class Game {
         gore::fontrenderer* font_r;
         gore::fontrenderer* static_font_r;
         gore::linerenderer* line_r;
+        gore::audioplayer* ap;
         // game loop vars
         double cam_move = 0.0;
         gore::vec2 cam_pos = {0, 0};
@@ -81,6 +83,7 @@ class Game {
         bool main_menu_loop();
         bool pause_menu_loop();
         bool game_loop();
+        bool lose_loop();
         void renderSelectFrame ();
         bool level_editor_loop();
         void constructGameButtons ();
@@ -97,17 +100,34 @@ class Game {
         gore::vec2 randomLocation ();
         void addPopup (gore::vec2 pos, std::string text);
         void renderPopups ();
+        bool insideBlades (gore::vec2 pos) {
+            entity& motor = entities[motor_index];
+            float cx = motor.pos.x + motor.dimen.x / 2.0f;
+            float cy = motor.pos.y + motor.dimen.y / 2.0f;
+            float half = (float)motor.level * 210.0f / 2.0f;
+            return pos.x >= cx - half && pos.x <= cx + half
+                && pos.y >= cy - half && pos.y <= cy + half;
+        }
         // images
         std::unordered_map<std::string, gore::IMG> images;
         void addImage (std::string image);
         int edge_count = 0;
         void renderBackground ();
         void enemySpawning ();
+        std::unordered_map<std::string, gore::audio> audios;
+        int getEntityIndex  (entity* e) {
+            for (int i = 0; i < entities.size(); i++) {
+                if (e == &entities[i]) {
+                    return i;
+                }
+            }
+            return -1;
+        }
     public:
         bool play = true;
         double delta = 0.0;
         gore::g_engine_2d* eng;
-        Game (std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::trianglerenderer>& triangle_r, std::unique_ptr<gore::trianglerenderer>& static_triangle_r, std::unique_ptr<gore::linerenderer>& line_r, std::unique_ptr<gore::fontrenderer>& font_r, std::unique_ptr<gore::fontrenderer>& static_font_r);
+        Game (std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::trianglerenderer>& triangle_r, std::unique_ptr<gore::trianglerenderer>& static_triangle_r, std::unique_ptr<gore::linerenderer>& line_r, std::unique_ptr<gore::fontrenderer>& font_r, std::unique_ptr<gore::fontrenderer>& static_font_r, gore::audioplayer* ap);
         void loop();
         void new_game ();
         void save(std::string path);
@@ -115,5 +135,6 @@ class Game {
         void levelEditorLoad ();
         void setGameMode(GAME_MODE mode);
         void addFont (std::filesystem::path path, uint32_t dpi);
+        void addSound (std::string sound);
         entity constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id = -1, entity_type type = entity_type::UNIT);
 };

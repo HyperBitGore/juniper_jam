@@ -77,7 +77,7 @@ std::vector<gore::vec2> pathBetweenCells (SpatialHashmap* map, gore::vec2 start,
 //      - optimize
 //          - need to get path down to 100 microseconds on average (in release build)
 std::vector<gore::vec2> findPath (SpatialHashmap* map, entity e, gore::vec2 target) {
-    if (map->raycastTo(e.pos, target, e.dimen.x, {e.type, entity_type::MOTOR, entity_type::FARM, entity_type::MASS}) == nullptr) {
+    if (map->raycastTo(e.pos, target, e.dimen.x, {entity_type::UNIT, entity_type::MOTOR, entity_type::FARM, entity_type::MASS}) == nullptr) {
         return { e.pos, target };
     }
     std::priority_queue<cell> queue;
@@ -133,15 +133,23 @@ std::vector<gore::vec2> findPath (SpatialHashmap* map, entity e, gore::vec2 targ
         std::vector<gore::vec2> neighbors = map->getCellNeighborPositions(least.pos.x, least.pos.y);
         for (auto& i : neighbors) {
             entity n = { i, e.dimen };
-            // check if raycast to this neighbor from cur position will collide
-            entity* ray = map->raycastTo(least.pos, i, e.dimen.x);
+            // only walls and map edges are solid — skip non-solid entities in traversal
+            entity* ray = map->raycastTo(least.pos, i, e.dimen.x, {
+                entity_type::UNIT, entity_type::FARM, entity_type::MOTOR,
+                entity_type::MASS, entity_type::MOTOR_BLADE, entity_type::BUTTON
+            });
             if (ray != nullptr) {
                 continue;
             }
-            entity* collision = map->checkCollision(&n);
-            if (collision != nullptr) {
-                continue;
+            std::vector<entity*> cols = map->getCollisions(&n);
+            bool wall_blocked = false;
+            for (auto* c : cols) {
+                if (c->type == entity_type::STRUCTURE || c->type == entity_type::MAP_EDGE) {
+                    wall_blocked = true;
+                    break;
+                }
             }
+            if (wall_blocked) continue;
 
             // check if in closed
             /*bool in_closed = false;
@@ -185,9 +193,19 @@ std::vector<gore::vec2> pathfinder::calculatePath (SpatialHashmap* map, entity e
     return found;
 }
 
-std::vector<gore::vec2> pathfinder::enemyPath (SpatialHashmap* map, entity e, gore::vec2 end_pos) {
-    std::vector<gore::vec2> found;
-
+std::vector<gore::vec2> pathfinder::enemyPath (SpatialHashmap* map, entity e, gore::vec2 end_pos, int motor_level) {
+    // walls can only exist inside the blade square, so outside it is always open field
+    float size = (float)motor_level * 210.0f;
+    float bx0 = end_pos.x - size / 2.0f;
+    float by0 = end_pos.y - size / 2.0f;
+    float bx1 = end_pos.x + size / 2.0f;
+    float by1 = end_pos.y + size / 2.0f;
+    bool inside = e.pos.x >= bx0 && e.pos.x + e.dimen.x <= bx1
+               && e.pos.y >= by0 && e.pos.y + e.dimen.y <= by1;
+    if (!inside) {
+        return { e.pos, end_pos };
+    }
+    std::vector<gore::vec2> found = findPath(map, e, end_pos);
     return found;
 }
 

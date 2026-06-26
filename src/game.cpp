@@ -1,5 +1,6 @@
 #include "game.hpp"
 #include "entity.hpp"
+#include "g_engine/audio/audio.hpp"
 #include "g_engine/file_loading/font_loader.hpp"
 #include "g_engine/rendering/font_renderer.hpp"
 #include "g_engine/rendering/primitive_renderer.hpp"
@@ -13,7 +14,7 @@
 #include <string>
 
 Game::Game(std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::trianglerenderer>& triangle_r, std::unique_ptr<gore::trianglerenderer>& static_triangle_r, std::unique_ptr<gore::linerenderer>& line_r, std::unique_ptr<gore::fontrenderer>& font_r
-    , std::unique_ptr<gore::fontrenderer>& static_font_r
+    , std::unique_ptr<gore::fontrenderer>& static_font_r, gore::audioplayer* ap
 ) {
     this->image_r = image_r.get();
     this->triangle_r = triangle_r.get();
@@ -21,6 +22,7 @@ Game::Game(std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::
     this->font_r = font_r.get();
     this->line_r = line_r.get();
     this->static_font_r = static_font_r.get();
+    this->ap = ap;
     font_map.setHashFunction(font_hash);
     spatial_hashmap = SpatialHashmap(50, 5000);
     setGameMode(GAME_MODE::MAIN_MENU);
@@ -57,6 +59,9 @@ Game::Game(std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::
     addImage("edge.png");
     addImage("edge_v.png");
     addImage("edge_v2.png");
+    addSound("mass_attack.wav");
+    addSound("collect.wav");
+    addSound("blade_kill.wav");
 }
 void Game::loop() {
     bool above_click = false;
@@ -75,7 +80,10 @@ void Game::loop() {
             cameraUpdate();
             above_click = level_editor_loop();
         break;
-    }
+        case GAME_MODE::LOSE_SCREEN:
+            lose_loop();
+          break;
+        }
     updateButtons(above_click);
 }
 
@@ -240,15 +248,19 @@ void Game::load(std::string path) {
 void Game::new_game () {
     entities.clear();
     enemies.clear();
+    popups.clear();
+    blades.clear();
     selected = nullptr;
     spatial_hashmap.clear();
-    this->money = 100;
+    this->money = 150;
     this->food = 24;
     this->cam_pos = { 2300, 2300};
     this->cam_zoom = 1.0f;
     this->rpm = 200;
     this->enemy_spawn_timer = 0.0;
     this->enemy_spawn_max = 10.0;
+    this->enemy_spawning_level = 2;
+    this->spawn_count = 0;
     entity top_left = constructEntity({0, 0}, {5000, 50}, -1, entity_type::MAP_EDGE);
     entity top_right = constructEntity({4950, 0}, {50, 5000}, -1, entity_type::MAP_EDGE);
     entity top_left_2 = constructEntity({0, 0}, {50, 5000}, -1, entity_type::MAP_EDGE);
@@ -270,6 +282,8 @@ void Game::levelEditorLoad () {
 void Game::setGameMode(GAME_MODE mode) {
      switch (mode) {
         case GAME_MODE::MAIN_MENU:
+            this->cam_pos = { 2300, 2300};
+            this->cam_zoom = 1.0f;
             constructMainMenuButtons();
         break;
         case GAME_MODE::PAUSE_MENU:
@@ -288,7 +302,10 @@ void Game::setGameMode(GAME_MODE mode) {
             constructGameButtons();
         }
         break;
-    }
+        case GAME_MODE::LOSE_SCREEN:
+            cam_move = 0.0;
+          break;
+        }
     this->mode = mode;
 }
 
@@ -393,9 +410,11 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
                 }
                 if (e->path.size() > 0 && e->action.target >= 0 && e->path[e->path.size() - 1] == entities[e->action.target].pos) {
 
-                } else if (e->pos == entities[e->action.target].pos) {
+                } else if (e->pos == entities[e->action.target].pos && entities[e->action.target].hp > 1) {
+                    entities[e->action.target].hp -= 1;
                     e->action.type = action_type::RETURN;
-                } else {
+                    e->count = 0;
+                } else if (!(e->pos == entities[e->action.target].pos)) {
                     spatial_hashmap.remove(&entities[e->action.target]);
                     spatial_hashmap.remove(&entities[motor_index]);
                     e->path = pathfinder::calculatePath(&spatial_hashmap, *e, entities[e->action.target].pos);
@@ -422,6 +441,7 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
                     e->count = 0;
                     this->food += 40;
                     e->action.type = action_type::COLLECT;
+                    ap->playFile(audios["collect.wav"], 1);
                 }
             }
         }
@@ -463,16 +483,23 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
         }
         if (food - e->level * 3 >= 0) {
             money += e->level * 2;
-        }
-        food -= e->level * 3;
-        if (food - e->level * 3 <= 0) {
-            food = 0;
+            food -= e->level * 3;
+            if (food - e->level * 3 <= 0) {
+                food = 0;
+            }
         }
         if (e->count >= 120) {
             if (motor_on) {
-                this->rpm += e->level * 5;
-                if (this->rpm > e->level * 200) {
-                    this->rpm = e->level * 200;
+                if (money > 0) {
+                    this->rpm += e->level * 10;
+                    if (this->rpm > e->level * 200) {
+                        this->rpm = e->level * 200;
+                    }
+                    this->money -= e->level * 10;
+                    if (this->money < 0) {
+                        money = 0;
+                    }
+                    
                 }
             } else {
                 this->rpm-=50;
@@ -511,6 +538,9 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
                 // remove hp corresponding to level
                 for (auto& i : cols) {
                     i->hp -= e->level;
+                    if (i->hp <= 0) {
+                        ap->playFile(audios["blade_kill.wav"], 1);
+                    }
                     addPopup(i->pos, "Damage: " + std::to_string(e->level));
                     this->rpm -= e->level;
                 }
@@ -527,36 +557,81 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
         }
     };
     auto farm_func = [&](entity* e) {
+        e->count++;
+        if (e->count >= 120) {
+            e->hp++;
+            if (e->hp > e->max_hp) {
+                e->hp = e->max_hp;
+            }
+            e->count = 0;
+        }
     };
     auto enemy_func = [&](entity* e) {
         e->count++;
         spatial_hashmap.remove(e);
         // scan for targets in attack range first
-        const float attack_range = 30.0f;
+        const float attack_range = 35.0f;
         std::vector<entity*> nearby = spatial_hashmap.scanAroundEntity(e, attack_range);
+        //entity* attack_target = (e->action.target != -1) ? &entities[e->action.target] : nullptr;
         entity* attack_target = nullptr;
-        for (auto* s : nearby) {
-            if (s->type == entity_type::UNIT || s->type == entity_type::MOTOR ||
-                s->type == entity_type::FARM || s->type == entity_type::STRUCTURE) {
-                attack_target = s;
-                break;
+        bool in_range = false;
+        if (nearby.size() > 0) {
+            // priority 1: units, motor, farms
+            for (auto* s : nearby) {
+                if (s->type == entity_type::UNIT || s->type == entity_type::MOTOR ||
+                    s->type == entity_type::FARM || (s->type == entity_type::STRUCTURE && s->isColliding(*e))) {
+                    attack_target = s;
+                    break;
+                }
+            }
+            if (attack_target != nullptr && attack_target->type != entity_type::MOTOR) {
+                e->path.clear();
             }
         }
-        if (attack_target != nullptr) {
-            e->path.clear();
-            e->attack_cooldown -= delta;
-            if (e->attack_cooldown <= 0.0) {
-                if (e->count % 10 == 0) {
-                    e->img_id++;
-                    if (e->img_id > 1) {
-                        e->img_id = 0;
-                    }
+        if (attack_target == nullptr && e->count > 60) {
+            entity* target = &entities[motor_index];
+            spatial_hashmap.remove(target);
+            e->path = pathfinder::enemyPath(&spatial_hashmap, *e, target->pos, entities[motor_index].level);
+            spatial_hashmap.insert(target);
+            if (e->path.empty()) {
+                std::vector<entity*> scan = spatial_hashmap.scanAroundEntity(e, 50.0f);
+                for (size_t i = 0; i < scan.size(); i++) {
+                    switch (scan[i]->type) {
+                        case entity_type::STRUCTURE:
+                            target = scan[i];
+                            i = scan.size();    
+                        break;
+                        case entity_type::UNIT:
+                            target = scan[i];
+                            i = scan.size();
+                            break;
+                        case entity_type::BUTTON:
+                            break;
+                        case entity_type::MAP_EDGE:
+                            break;
+                        case entity_type::FARM:
+                            target = scan[i];
+                            i = scan.size();
+                            break;
+                        case entity_type::MASS:
+                        break;
+                        case entity_type::MOTOR_BLADE:
+                        break;
+                        case entity_type::MOTOR:
+                          break;
+                        }
                 }
-                attack_target->hp -= e->level;
-                addPopup(attack_target->pos, "Damage: " + std::to_string(e->level));
-                e->attack_cooldown = 1.0;
+                if (target == &entities[motor_index]) {
+                    e->path = { e->pos, entities[motor_index].pos};
+                } else {
+                    spatial_hashmap.remove(target);
+                    e->path = pathfinder::enemyPath(&spatial_hashmap, *e, target->pos, 0);
+                    spatial_hashmap.insert(target);
+                }
             }
-        } else if (e->count > 60) {
+            e->count = 0;
+        }
+        /*if (e->count > 60 && (e->path.empty() || (attack_target != nullptr && (attack_target->type == entity_type::UNIT || attack_target->type == entity_type::MOTOR)))) {
             // repath toward nearest high-priority target
             std::vector<entity*> scan = spatial_hashmap.scanAroundEntity(e, 200.0f);
             entity* target = &entities[motor_index];
@@ -580,15 +655,74 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
                     i = scan.size();
                     break;
                 case entity_type::MASS:
-                  break;
+                break;
                 case entity_type::MOTOR_BLADE:
-                  break;
+                break;
                 }
             }
             spatial_hashmap.remove(target);
-            e->path = pathfinder::calculatePath(&spatial_hashmap, *e, target->pos);
+            e->path = pathfinder::enemyPath(&spatial_hashmap, *e, target->pos, entities[motor_index].level);
             spatial_hashmap.insert(target);
             e->count = 0;
+            // priority 2: if no path found, attack a blocking wall
+            if (e->path.empty()) {
+                for (auto* s : nearby) {
+                    if (s->type == entity_type::STRUCTURE) {
+                        attack_target = s;
+                        break;
+                    }
+                }
+                if (attack_target == nullptr) {
+                    e->path = { e->pos, entities[motor_index].pos };
+                    e->action.target = motor_index;
+                } else {
+                    entity* ray = spatial_hashmap.raycastTo(e->pos, entities[motor_index].pos, e->dimen.x, {
+                        entity_type::MASS, entity_type::MOTOR_BLADE, entity_type::BUTTON
+                    });
+                    if (ray != nullptr) {
+                        e->path = { e->pos, ray->pos };
+                        e->action.target = getEntityIndex(ray);
+                    }
+                }
+            }
+        }
+        // apply attack to whatever target was found
+        if (attack_target != nullptr) {
+            // check if in range
+            bool in_range = false;
+            for (auto& i : nearby) {
+                if (attack_target == i) {
+                    in_range = true;
+                }
+            }
+            if (in_range) {
+                e->attack_cooldown -= delta;
+                if (e->attack_cooldown <= 0.0) {
+                    if (e->count % 10 == 0) {
+                        e->img_id++;
+                        if (e->img_id > 1) e->img_id = 0;
+                    }
+                    attack_target->hp -= e->level;
+                    // ap->playFile(audios["mass_attack.wav"], 1);
+                    addPopup(attack_target->pos, "Damage: " + std::to_string(e->level));
+                    e->attack_cooldown = 1.0;
+                }
+            }
+        }*/
+         // apply attack to whatever target was found
+        if (attack_target != nullptr) {
+            // check if in range
+                e->attack_cooldown -= delta;
+                if (e->attack_cooldown <= 0.0) {
+                    if (e->count % 10 == 0) {
+                        e->img_id++;
+                        if (e->img_id > 1) e->img_id = 0;
+                    }
+                    attack_target->hp -= e->level;
+                    // ap->playFile(audios["mass_attack.wav"], 1);
+                    addPopup(attack_target->pos, "Damage: " + std::to_string(e->level));
+                    e->attack_cooldown = 1.0;
+                }
         }
         if (e->path.size() > 0) {
             gore::vec2 next = e->path[0];
@@ -632,7 +766,7 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
     auto farm_render = [&, draw_health_bar] (entity* e) {
         gore::IMG& img = images["farm.png"];
         if (img) {
-            image_r->drawImage(img, e->pos, e->dimen);
+            image_r->addImageVertex(img->tex, e->pos, e->dimen);
         } else {
             triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
             triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
@@ -644,7 +778,7 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
     auto wall_render = [&, draw_health_bar] (entity* e) {
         gore::IMG& img = images["wall.png"];
         if (img) {
-            image_r->drawImage(img, e->pos, e->dimen);
+            image_r->addImageVertex(img->tex, e->pos, e->dimen);
         } else {
             triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
             triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
@@ -665,7 +799,7 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
             case 6: img = &images["unit_a4.png"]; break;
         }
         if (*img) {
-            image_r->drawImage(*img, e->pos, e->dimen);
+            image_r->addImageVertex((*img)->tex, e->pos, e->dimen);
         } else {
             triangle_r->setColor({0.2f, 0.6f, 1.0f, 1.0f});
             triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
@@ -704,7 +838,6 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
                     image_r->addImageVertex((*img)->tex, {x, y}, {50.0f, 50.0f}, uvs, 0.0f);
                 }
             }
-            image_r->drawBuffer();
         } else {
             triangle_r->setColor({0.0f, 1.0f, 0.0f, 1.0f});
             triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
@@ -732,7 +865,7 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
             case 15: img = &images["engine_r15.png"]; break;
         }
         if (*img) {
-            image_r->drawImage(*img, e->pos, e->dimen);
+            image_r->addImageVertex((*img)->tex, e->pos, e->dimen);
         } else {
             triangle_r->setColor({1.0f, 0.0f, 0.3f, 1.0f});
             triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
@@ -747,7 +880,7 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
             case 2: img = &images["enemy_w1.png"]; break;
         }
         if (*img) {
-            image_r->drawImage(*img, e->pos, e->dimen);
+             image_r->addImageVertex((*img)->tex, e->pos, e->dimen);
         } else {
             triangle_r->setColor({1.0f, 0.0f, 0.0f, 1.0f});
             triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
@@ -780,7 +913,6 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
             for (float x = sx; x < ex; x += 10.0f)
                 for (float y = sy; y < ey; y += 10.0f)
                     image_r->addImageVertex(img->tex, {x, y}, {10.0f, 10.0f});
-            image_r->drawBuffer();
         } else {
             triangle_r->setColor({1.0f, 0.0f, 0.3f, 1.0f});
             triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
@@ -794,14 +926,16 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
         gore::vec2 mouse = eng->getMousePos(false, true);
         entity mouse_e = { mouse, {10.0f, 10.0f} };
         entity upgrade_btn = { {start.x, start.y - 16.0f}, {150.0f, 20.0f} };
-        entity turn_btn = { {start.x, start.y + 24}, {150.0f, 20.0f}};
+        entity turn_btn = { {start.x, start.y + 24}, {250.0f, 20.0f}};
         bool mouse_down = eng->getMouseLeftDown();
         if (mouse_down && upgrade_btn.isColliding(mouse_e)) {
             if ((int64_t)cost <= money) {
                 money -= cost;
                 e->level++;
-                for (auto& b : blades) spatial_hashmap.remove(&b);
-                blades.clear();
+                if (e->level < 12) {
+                    for (auto& b : blades) spatial_hashmap.remove(&b);
+                    blades.clear();
+                }
             }
         } else if (e->count % 90 == 0 && mouse_down && turn_btn.isColliding(mouse_e)) {
             this->motor_on = !motor_on;
@@ -810,6 +944,22 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
     auto blade_select = [&](entity* e, gore::vec2 start, gore::font* font) {
         // render the RPM
         font_r->drawText("RPM: " + std::to_string(rpm), font, start.x + 74, start.y, 16, eng->getDPI());
+    };
+    auto unit_select = [&](entity* e, gore::vec2 start, gore::font* font) {
+        uint32_t cost = (e->level + 1) * 20;
+        font_r->drawText("Upgrade: " + std::to_string(cost), font, start.x, start.y, 16, eng->getDPI());
+        gore::vec2 mouse = eng->getMousePos(false, true);
+        entity mouse_e = { mouse, {10.0f, 10.0f} };
+        entity upgrade_btn = { {start.x, start.y - 16.0f}, {150.0f, 20.0f} };
+        bool mouse_down = eng->getMouseLeftDown();
+        if (mouse_down && upgrade_btn.isColliding(mouse_e)) {
+            if ((int64_t)cost <= money) {
+                money -= cost;
+                e->level++;
+                e->max_hp = e->level * 10;
+                e->hp = e->max_hp;
+            }
+        }
     };
     e.render = base_render;
     switch (type) {
@@ -821,6 +971,7 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
     case entity_type::UNIT:
         e.update = unit_func;
         e.render = unit_render;
+        e.selection = unit_select;
         e.hp = 10;
         e.img_id = 0;
         break;
@@ -837,19 +988,20 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
         e.update = motor_func;
         e.render = motor_render;
         e.selection = motor_select;
-        e.hp = 1000;
-        e.max_hp = 1000;
+        e.hp = 250;
+        e.max_hp = 250;
         e.img_id = 0;
       break;
     case entity_type::FARM:
         e.update = farm_func;
         e.render = farm_render;
-        e.hp = 20;
-        e.max_hp = 20;
+        e.hp = 3;
+        e.max_hp = 3;
       break;
     case entity_type::MASS:
         e.update = enemy_func;
         e.render = mass_render;
+        e.action.target = motor_index;
         e.img_id = 0;
         e.hp = 10;
       break;
@@ -895,7 +1047,7 @@ void Game::renderPopups () {
         static_font_r->setColor({1.0f, 1.0f, 1.0f, (float)popups[i].hp/255.0f});
         static_font_r->drawText(popups[i].text, font, popups[i].pos.x, popups[i].pos.y, 10, eng->getDPI());
         popups[i].count++;
-        popups[i].hp--;
+        popups[i].hp-=5;
         if (popups[i].hp <= 0) {
             popups.erase(popups.begin() + i);
         } else {
@@ -925,7 +1077,7 @@ void Game::enemySpawning () {
         static std::uniform_real_distribution<float> offset_dist(-60.0f, 60.0f);
         std::uniform_int_distribution<int> enemy_count(enemy_spawning_level - 1, enemy_spawning_level);
         std::uniform_int_distribution<int> enemy_level(1, enemy_spawning_level);
-        std::uniform_int_distribution<int> health_dist(-5, enemy_spawning_level * 10);
+        std::uniform_int_distribution<int> health_dist(-5, enemy_spawning_level * 5);
         std::uniform_real_distribution<float> size_dif(-10.0f, (float)enemy_spawning_level * 10.0f);
         enemy_spawn_timer = 0.0;
         gore::vec2 start = randomLocation();
@@ -944,6 +1096,7 @@ void Game::enemySpawning () {
             enem.hp = health_dist(rng) + dimen.x;
             enem.max_hp = enem.hp;
             enem.level = enemy_level(rng);
+            enem.count = 61; // trigger immediate pathing on first frame
             enemies.push_back(enem);
             spatial_hashmap.insert(&enemies[enemies.size() - 1]);
         }
