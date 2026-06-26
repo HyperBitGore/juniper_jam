@@ -76,6 +76,8 @@ class Game {
         int motor_index = 4;
         double enemy_spawn_timer = 0.0;
         double enemy_spawn_max = 10.0;
+        int enemy_spawning_level = 2;
+        int spawn_count = 0;
         bool main_menu_loop();
         bool pause_menu_loop();
         bool game_loop();
@@ -100,6 +102,7 @@ class Game {
         void addImage (std::string image);
         int edge_count = 0;
         void renderBackground ();
+        void enemySpawning ();
     public:
         bool play = true;
         double delta = 0.0;

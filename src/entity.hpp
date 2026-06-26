@@ -80,6 +80,33 @@ class entity {
             }
             return entity_type::UNIT;
         }
+        static uint8_t actiontypeToUint8t (action_type type) {
+            switch (type) {
+            case action_type::NONE:
+                return 0;
+            case action_type::ATTACK:
+                return 1;
+            case action_type::COLLECT:
+                return 2;
+            case action_type::RETURN:
+                return 3;
+            }
+            return 255;
+        }
+
+        static action_type uint8tToAction (uint8_t type) {
+            switch (type) {
+                case 0:
+                return action_type::NONE;
+                case 1:
+                return action_type::ATTACK;
+                case 2:
+                return action_type::COLLECT;
+                case 3:
+                return action_type::RETURN;
+            }
+            return action_type::NONE;
+        }
 };
 
 

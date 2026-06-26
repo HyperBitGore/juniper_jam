@@ -4,6 +4,7 @@
 #include "g_engine/rendering/font_renderer.hpp"
 #include "g_engine/rendering/primitive_renderer.hpp"
 #include "path.hpp"
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -94,6 +95,8 @@ void Game::save(std::string path) {
     }
     file.write(reinterpret_cast<const char*>(&this->money), sizeof(this->money));
     file.write(reinterpret_cast<const char*>(&this->food), sizeof(this->food));
+    file.write(reinterpret_cast<const char*>(&this->rpm), sizeof(this->rpm));
+    file.write(reinterpret_cast<const char*>(&this->motor_on), sizeof(this->motor_on));
     uint32_t cam = floatToBytes(cam_pos.x);
     file.write(reinterpret_cast<const char*>(&cam), sizeof(float));
     cam = floatToBytes(cam_pos.y);
@@ -113,8 +116,39 @@ void Game::save(std::string path) {
         file.write(reinterpret_cast<const char*>(&data), sizeof(float));
         data = floatToBytes(i.dimen.y);
         file.write(reinterpret_cast<const char*>(&data), sizeof(float));
-        // write out action?
-
+        file.write(reinterpret_cast<const char*>(&i.level), sizeof(int));
+        file.write(reinterpret_cast<const char*>(&i.hp), sizeof(int));
+        file.write(reinterpret_cast<const char*>(&i.max_hp), sizeof(int));
+        file.write(reinterpret_cast<const char*>(&i.img_id), sizeof(int));
+        // write out action
+        v = entity::actiontypeToUint8t(i.action.type);
+        file.write(reinterpret_cast<const char*>(&v), sizeof(uint8_t));
+        file.write(reinterpret_cast<const char*>(&i.action.target), sizeof(int));
+    }
+    cam = floatToBytes(enemy_spawn_max);
+    file.write(reinterpret_cast<const char*>(&cam), sizeof(float));
+    file.write(reinterpret_cast<const char*>(&this->enemy_spawning_level), sizeof(int));
+    file.write(reinterpret_cast<const char*>(&this->spawn_count), sizeof(int));
+    siz = enemies.size();
+    file.write(reinterpret_cast<const char*>(&siz), sizeof(unsigned long));
+    // enemy write out
+    for (auto& i : enemies) {
+        uint32_t data = floatToBytes(i.pos.x);
+        file.write(reinterpret_cast<const char*>(&data), sizeof(float));
+        data = floatToBytes(i.pos.y);
+        file.write(reinterpret_cast<const char*>(&data), sizeof(float));
+        data = floatToBytes(i.dimen.x);
+        file.write(reinterpret_cast<const char*>(&data), sizeof(float));
+        data = floatToBytes(i.dimen.y);
+        file.write(reinterpret_cast<const char*>(&data), sizeof(float));
+        file.write(reinterpret_cast<const char*>(&i.level), sizeof(int));
+        file.write(reinterpret_cast<const char*>(&i.hp), sizeof(int));
+        file.write(reinterpret_cast<const char*>(&i.max_hp), sizeof(int));
+        file.write(reinterpret_cast<const char*>(&i.img_id), sizeof(int));
+        // write out action
+        uint8_t v = entity::actiontypeToUint8t(i.action.type);
+        file.write(reinterpret_cast<const char*>(&v), sizeof(uint8_t));
+        file.write(reinterpret_cast<const char*>(&i.action.target), sizeof(int));
     }
     file.close();
 }
@@ -128,6 +162,8 @@ void Game::load(std::string path) {
     if (file) {
         file.read(reinterpret_cast<char*>(&this->money), sizeof(this->money));
         file.read(reinterpret_cast<char*>(&this->food), sizeof(this->food));
+        file.read(reinterpret_cast<char*>(&this->rpm), sizeof(this->rpm));
+        file.read(reinterpret_cast<char*>(&this->motor_on), sizeof(this->motor_on));
         // camera
         file.read(reinterpret_cast<char*>(&this->cam_pos.x), sizeof(float));
         file.read(reinterpret_cast<char*>(&this->cam_pos.y), sizeof(float));
@@ -145,8 +181,55 @@ void Game::load(std::string path) {
             file.read(reinterpret_cast<char*>(&py), sizeof(float));
             file.read(reinterpret_cast<char*>(&dx), sizeof(float));
             file.read(reinterpret_cast<char*>(&dy), sizeof(float));
+            uint32_t level;
+            int hp, max_hp, img_id, action_index;
+            file.read(reinterpret_cast<char*>(&level), sizeof(uint32_t));
+            file.read(reinterpret_cast<char*>(&hp), sizeof(int));
+            file.read(reinterpret_cast<char*>(&max_hp), sizeof(int));
+            file.read(reinterpret_cast<char*>(&img_id), sizeof(int));
+            file.read(reinterpret_cast<char*>(&v), sizeof(uint8_t));
+            file.read(reinterpret_cast<char*>(&action_index), sizeof(int));
+            action_type atype = entity::uint8tToAction(v);
             entity e = constructEntity({px, py}, {dx, dy}, -1, type);
+            e.hp = hp;
+            e.max_hp = max_hp;
+            e.img_id = img_id;
+            e.level = level;
+            e.action.target = action_index;
+            e.action.type = atype;
             entities.push_back(e);
+        }
+        float f;
+        file.read(reinterpret_cast<char*>(&f), sizeof(float));
+        this->enemy_spawn_max = f;
+        file.read(reinterpret_cast<char*>(&this->enemy_spawning_level), sizeof(int));
+        file.read(reinterpret_cast<char*>(&this->spawn_count), sizeof(int));
+        file.read(reinterpret_cast<char*>(&siz), sizeof(unsigned long));
+        for (size_t i = 0; i < siz; i++) {
+            // read the position and dimensions
+            float px, py, dx, dy;
+            file.read(reinterpret_cast<char*>(&px), sizeof(float));
+            file.read(reinterpret_cast<char*>(&py), sizeof(float));
+            file.read(reinterpret_cast<char*>(&dx), sizeof(float));
+            file.read(reinterpret_cast<char*>(&dy), sizeof(float));
+            uint32_t level;
+            int hp, max_hp, img_id, action_index;
+            file.read(reinterpret_cast<char*>(&level), sizeof(uint32_t));
+            file.read(reinterpret_cast<char*>(&hp), sizeof(int));
+            file.read(reinterpret_cast<char*>(&max_hp), sizeof(int));
+            file.read(reinterpret_cast<char*>(&img_id), sizeof(int));
+            uint8_t v;
+            file.read(reinterpret_cast<char*>(&v), sizeof(uint8_t));
+            file.read(reinterpret_cast<char*>(&action_index), sizeof(int));
+            action_type atype = entity::uint8tToAction(v);
+            entity e = constructEntity({px, py}, {dx, dy}, -1, entity_type::MASS);
+            e.hp = hp;
+            e.max_hp = max_hp;
+            e.img_id = img_id;
+            e.level = level;
+            e.action.target = action_index;
+            e.action.type = atype;
+            enemies.push_back(e);
         }
     }
     file.close();
@@ -431,6 +514,15 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
                     addPopup(i->pos, "Damage: " + std::to_string(e->level));
                     this->rpm -= e->level;
                 }
+            }
+        }
+    };
+    auto map_edge_func = [&](entity* e) {
+        std::vector<entity*> cols = spatial_hashmap.getCollisions(e);
+        if (!cols.empty()) {
+            // remove hp corresponding to level
+            for (auto& i : cols) {
+                i->hp = 0;
             }
         }
     };
@@ -738,6 +830,7 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
         break;
     case entity_type::MAP_EDGE:
         e.render = edge_render;
+        e.update = map_edge_func;
         e.hp = 99999;
         break;
     case entity_type::MOTOR:
@@ -820,4 +913,44 @@ void Game::renderBackground () {
         }
     }
     image_r->drawBuffer();
+}
+
+void Game::enemySpawning () {
+    enemy_spawn_timer += delta;
+    if (enemy_spawn_timer >= enemy_spawn_max) {
+        if (spawn_count % 5 == 0) {
+            enemy_spawning_level++;
+        }
+        static std::mt19937 rng(std::random_device{}());
+        static std::uniform_real_distribution<float> offset_dist(-60.0f, 60.0f);
+        std::uniform_int_distribution<int> enemy_count(enemy_spawning_level - 1, enemy_spawning_level);
+        std::uniform_int_distribution<int> enemy_level(1, enemy_spawning_level);
+        std::uniform_int_distribution<int> health_dist(-5, enemy_spawning_level * 10);
+        std::uniform_real_distribution<float> size_dif(-10.0f, (float)enemy_spawning_level * 10.0f);
+        enemy_spawn_timer = 0.0;
+        gore::vec2 start = randomLocation();
+        int count = enemy_count(rng);
+        for (int i = 0; i < count; i++) {
+            // offset each enemy so they don't stack; clamp to map interior
+            gore::vec2 pos = {
+                std::clamp(start.x + offset_dist(rng), 61.0f, 4939.0f),
+                std::clamp(start.y + offset_dist(rng), 61.0f, 4939.0f)
+            };
+            gore::vec2 dimen = {
+                std::clamp(20.0f + size_dif(rng), 10.0f, 200.0f),
+                std::clamp(20.0f + size_dif(rng), 10.0f, 200.0f)
+            };
+            entity enem = constructEntity(pos, dimen, 0, entity_type::MASS);
+            enem.hp = health_dist(rng) + dimen.x;
+            enem.max_hp = enem.hp;
+            enem.level = enemy_level(rng);
+            enemies.push_back(enem);
+            spatial_hashmap.insert(&enemies[enemies.size() - 1]);
+        }
+        enemy_spawn_max -= 0.002;
+        if (enemy_spawn_max < 1.0) {
+            enemy_spawn_max = 1.0;
+        }
+        spawn_count++;
+    }
 }

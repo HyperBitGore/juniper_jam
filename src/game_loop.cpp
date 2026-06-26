@@ -9,13 +9,11 @@ bool render_right_click_dropdown = false;
 //  - freezing was caused by std::vector reallocation invalidating raw entity* pointers stored in the spatial hashmap
 //    fixed by: using std::deque (stable pointers on push_back), inserting initial entities, and tracking selected through erases
 
-// TODO spawn waves
-// TODO finish saving/loading
-//      - make units sit on top of everything
-//      - keep jobs and targets intact?
 // TODO balance
 //      - make rpm consume money
-
+//      - max out build area size, but can increase RPM max
+//      - upgrade units
+//      - make enemies choose to path around walls rather than kill them first
 // TODO sound
 // TODO polish text and UI
 bool Game::game_loop() {
@@ -23,17 +21,7 @@ bool Game::game_loop() {
         this->setGameMode(GAME_MODE::PAUSE_MENU);
         return false;
     }
-    enemy_spawn_timer += delta;
-    if (enemy_spawn_timer >= enemy_spawn_max) {
-        enemy_spawn_timer = 0.0;
-        entity enem = constructEntity(randomLocation(), { 20, 20 }, -1, entity_type::MASS);
-        enemies.push_back(enem);
-        spatial_hashmap.insert(&enemies[enemies.size() - 1]);
-        enemy_spawn_max -= 0.002;
-        if (enemy_spawn_max < 1.0) {
-            enemy_spawn_max = 1.0;
-        }
-    }
+   enemySpawning();
     bool above_click = false;
     gore::font* font = font_map.get("OpenSans-Regular.ttf");
     mouse_click_cooldown += delta;

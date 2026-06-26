@@ -77,7 +77,7 @@ std::vector<gore::vec2> pathBetweenCells (SpatialHashmap* map, gore::vec2 start,
 //      - optimize
 //          - need to get path down to 100 microseconds on average (in release build)
 std::vector<gore::vec2> findPath (SpatialHashmap* map, entity e, gore::vec2 target) {
-    if (map->raycastTo(e.pos, target, e.dimen.x, {e.type, entity_type::MOTOR, entity_type::FARM}) == nullptr) {
+    if (map->raycastTo(e.pos, target, e.dimen.x, {e.type, entity_type::MOTOR, entity_type::FARM, entity_type::MASS}) == nullptr) {
         return { e.pos, target };
     }
     std::priority_queue<cell> queue;
