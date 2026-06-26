@@ -4,20 +4,58 @@
 #include "g_engine/rendering/font_renderer.hpp"
 #include "g_engine/rendering/primitive_renderer.hpp"
 #include "path.hpp"
+#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <stdexcept>
 #include <random>
+#include <string>
 
-Game::Game(std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::trianglerenderer>& triangle_r, std::unique_ptr<gore::trianglerenderer>& static_triangle_r, std::unique_ptr<gore::linerenderer>& line_r, std::unique_ptr<gore::fontrenderer>& font_r) {
+Game::Game(std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::trianglerenderer>& triangle_r, std::unique_ptr<gore::trianglerenderer>& static_triangle_r, std::unique_ptr<gore::linerenderer>& line_r, std::unique_ptr<gore::fontrenderer>& font_r
+    , std::unique_ptr<gore::fontrenderer>& static_font_r
+) {
     this->image_r = image_r.get();
     this->triangle_r = triangle_r.get();
     this->static_triangle_r = static_triangle_r.get();
     this->font_r = font_r.get();
     this->line_r = line_r.get();
+    this->static_font_r = static_font_r.get();
     font_map.setHashFunction(font_hash);
     spatial_hashmap = SpatialHashmap(50, 5000);
     setGameMode(GAME_MODE::MAIN_MENU);
+    addImage("unit.png");
+    addImage("unit_w1.png");
+    addImage("unit_w2.png");
+    addImage("unit_a1.png");
+    addImage("unit_a2.png");
+    addImage("unit_a3.png");
+    addImage("unit_a4.png");
+    addImage("enemy.png");
+    addImage("enemy_a1.png");
+    addImage("enemy_w1.png");
+    addImage("wall.png");
+    addImage("farm.png");
+    addImage("engine.png");
+    addImage("engine_r1.png");
+    addImage("engine_r2.png");
+    addImage("engine_r3.png");
+    addImage("engine_r4.png");
+    addImage("engine_r5.png");
+    addImage("engine_r6.png");
+    addImage("engine_r7.png");
+    addImage("engine_r8.png");
+    addImage("engine_r9.png");
+    addImage("engine_r10.png");
+    addImage("engine_r11.png");
+    addImage("engine_r12.png");
+    addImage("engine_r13.png");
+    addImage("engine_r14.png");
+    addImage("engine_r15.png");
+    addImage("blade.png");
+    addImage("back.png");
+    addImage("edge.png");
+    addImage("edge_v.png");
+    addImage("edge_v2.png");
 }
 void Game::loop() {
     bool above_click = false;
@@ -239,8 +277,18 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
                 e->path.clear();
                 e->attack_cooldown -= delta;
                 if (e->attack_cooldown <= 0.0) {
+                    addPopup(target->pos, "Damage: " + std::to_string(e->level));
                     target->hp -= e->level;
                     e->attack_cooldown = 1.0;
+                }
+                if (e->count % 10 == 0) {
+                    if (e->img_id < 3) {
+                        e->img_id = 3;
+                    }
+                    e->img_id++;
+                    if (e->img_id > 6) {
+                        e->img_id = 3;
+                    }
                 }
             } else {
                 // repath on a timer, not every frame
@@ -312,12 +360,24 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
                 float angle = std::atan2f(dif.y, dif.x);
                 gore::vec2 change = { std::cosf(angle) * 2.0f, std::sinf(angle) * 2.0f };
                 e->pos += change;
+                if (e->count % 10 == 0) {
+                    e->img_id++;
+                    if (e->img_id > 2) {
+                        e->img_id = 0;
+                    }
+                }
             }
         }
         spatial_hashmap.insert(e);
     };
     auto motor_func = [&](entity* e) {
         e->count++;
+        if (e->count % 5 == 0 && motor_on) {
+            e->img_id++;
+            if (e->img_id > 15) {
+                e->img_id = 0;
+            }
+        }
         if (food - e->level * 3 >= 0) {
             money += e->level * 2;
         }
@@ -326,12 +386,19 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
             food = 0;
         }
         if (e->count >= 120) {
-            this->rpm++;
-            if (this->rpm > e->level * 200) {
-                this->rpm--;
+            if (motor_on) {
+                this->rpm += e->level * 5;
+                if (this->rpm > e->level * 200) {
+                    this->rpm = e->level * 200;
+                }
+            } else {
+                this->rpm-=50;
             }
             e->count = 0;
         }
+        if (this->rpm < 0) {
+            this->rpm = 0;
+        } 
         if (blades.empty()) {
             float size = (float)e->level * 210.0f;
             float cx = e->pos.x + e->dimen.x / 2.0f;
@@ -341,10 +408,10 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
             entity bottom = constructEntity({cx - size/2.0f, cy + size/2.0f - t},    {size, t},    -1, entity_type::MOTOR_BLADE);
             entity left   = constructEntity({cx - size/2.0f, cy - size/2.0f},        {t,    size}, -1, entity_type::MOTOR_BLADE);
             entity right  = constructEntity({cx + size/2.0f - t, cy - size/2.0f},    {t,    size}, -1, entity_type::MOTOR_BLADE);
-            top.level = e->level;
-            bottom.level = e->level;
-            left.level = e->level;
-            right.level = e->level;
+            top.level = e->level;    top.img_id = 0;
+            bottom.level = e->level; bottom.img_id = 1;
+            left.level = e->level;   left.img_id = 2;
+            right.level = e->level;  right.img_id = 3;
             blades.push_back(top);
             blades.push_back(bottom);
             blades.push_back(left);
@@ -353,12 +420,15 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
         }
     };
     auto blade_func = [&](entity* e) {
+        if (e->img_id == 0 && rpm > 0)
+            blade_scroll = fmodf(blade_scroll + (float)delta * (float)rpm * 0.05f, 10.0f);
         if (this->rpm > 0) {
             std::vector<entity*> cols = spatial_hashmap.getCollisions(e);
             if (!cols.empty()) {
                 // remove hp corresponding to level
                 for (auto& i : cols) {
                     i->hp -= e->level;
+                    addPopup(i->pos, "Damage: " + std::to_string(e->level));
                     this->rpm -= e->level;
                 }
             }
@@ -384,7 +454,14 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
             e->path.clear();
             e->attack_cooldown -= delta;
             if (e->attack_cooldown <= 0.0) {
-                attack_target->hp -= 1;
+                if (e->count % 10 == 0) {
+                    e->img_id++;
+                    if (e->img_id > 1) {
+                        e->img_id = 0;
+                    }
+                }
+                attack_target->hp -= e->level;
+                addPopup(attack_target->pos, "Damage: " + std::to_string(e->level));
                 e->attack_cooldown = 1.0;
             }
         } else if (e->count > 60) {
@@ -431,6 +508,12 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
                 float angle = std::atan2f(dif.y, dif.x);
                 gore::vec2 change = { std::cosf(angle) * 2.0f, std::sinf(angle) * 2.0f };
                 e->pos += change;
+                if (e->count % 10 == 0) {
+                    e->img_id++;
+                    if (e->img_id > 2) {
+                        e->img_id = 0;
+                    }
+                }
             }
         }
         spatial_hashmap.insert(e);
@@ -454,27 +537,162 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
             draw_health_bar(e);
         }
     };
+    auto farm_render = [&, draw_health_bar] (entity* e) {
+        gore::IMG& img = images["farm.png"];
+        if (img) {
+            image_r->drawImage(img, e->pos, e->dimen);
+        } else {
+            triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
+            triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
+        }
+        if (e->hp < e->max_hp) {
+            draw_health_bar(e);
+        }
+    };
+    auto wall_render = [&, draw_health_bar] (entity* e) {
+        gore::IMG& img = images["wall.png"];
+        if (img) {
+            image_r->drawImage(img, e->pos, e->dimen);
+        } else {
+            triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
+            triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
+        }
+        if (e->hp < e->max_hp) {
+            draw_health_bar(e);
+        }
+    };
     auto unit_render = [&, draw_health_bar](entity* e) {
-        triangle_r->setColor({0.2f, 0.6f, 1.0f, 1.0f});
-        triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
+        gore::IMG* img = &images["unit.png"];
+        switch (e->img_id) {
+            case 0: img = &images["unit.png"]; break;
+            case 1: img = &images["unit_w1.png"]; break;
+            case 2: img = &images["unit_w2.png"]; break;
+            case 3: img = &images["unit_a1.png"]; break;
+            case 4: img = &images["unit_a2.png"]; break;
+            case 5: img = &images["unit_a3.png"]; break;
+            case 6: img = &images["unit_a4.png"]; break;
+        }
+        if (*img) {
+            image_r->drawImage(*img, e->pos, e->dimen);
+        } else {
+            triangle_r->setColor({0.2f, 0.6f, 1.0f, 1.0f});
+            triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
+        }
         draw_health_bar(e);
     };
     auto edge_render = [&](entity* e) {
-        triangle_r->setColor({0.0f, 1.0f, 0.2f, 1.0f});
-        triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
+        gore::IMG* img = &images["edge.png"];
+        if (img) {
+            // Determine rotation so the image's left side always faces the map interior.
+            // Rotation is around the tile's top-left corner, so pos is compensated
+            // to keep each tile in its correct screen position.
+            bool horizontal = e->dimen.x > e->dimen.y;
+            gore::vec4 uvs;
+            if (horizontal) {
+                if (e->pos.y < 100.0f) {
+                    // top wall — vertical flip
+                    uvs = {0, 0, 1, 1};
+                    img = &images["edge_v.png"];
+                } else {
+                    // bottom wall — vertical flip
+                    uvs = {0, 0, 1, 1};
+                    img = &images["edge_v2.png"];
+                }
+            } else {
+                if (e->pos.x < 100.0f) {
+                    // left wall — no flip
+                    uvs = {0, 0, 1, 1};
+                } else {
+                    // right wall — horizontal flip
+                    uvs = {1, 0, -1, 1};
+                }
+            }
+            for (float x = e->pos.x; x < e->pos.x + e->dimen.x; x += 50.0f) {
+                for (float y = e->pos.y; y < e->pos.y + e->dimen.y; y += 50.0f) {
+                    image_r->addImageVertex((*img)->tex, {x, y}, {50.0f, 50.0f}, uvs, 0.0f);
+                }
+            }
+            image_r->drawBuffer();
+        } else {
+            triangle_r->setColor({0.0f, 1.0f, 0.0f, 1.0f});
+            triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
+        }
+        edge_count++;
     };
-    auto motor_render = [&](entity* e) {
-        triangle_r->setColor({1.0f, 0.0f, 0.3f, 1.0f});
-        triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
+    auto motor_render = [&, draw_health_bar](entity* e) {
+        gore::IMG* img = &images["engine.png"];
+        switch (e->img_id) {
+            case 0: img = &images["engine.png"]; break;
+            case 1: img = &images["engine_r1.png"]; break;
+            case 2: img = &images["engine_r2.png"]; break;
+            case 3: img = &images["engine_r3.png"]; break;
+            case 4: img = &images["engine_r4.png"]; break;
+            case 5: img = &images["engine_r5.png"]; break;
+            case 6: img = &images["engine_r6.png"]; break;
+            case 7: img = &images["engine_r7.png"]; break;
+            case 8: img = &images["engine_r8.png"]; break;
+            case 9: img = &images["engine_r9.png"]; break;
+            case 10: img = &images["engine_r10.png"]; break;
+            case 11: img = &images["engine_r11.png"]; break;
+            case 12: img = &images["engine_r12.png"]; break;
+            case 13: img = &images["engine_r13.png"]; break;
+            case 14: img = &images["engine_r14.png"]; break;
+            case 15: img = &images["engine_r15.png"]; break;
+        }
+        if (*img) {
+            image_r->drawImage(*img, e->pos, e->dimen);
+        } else {
+            triangle_r->setColor({1.0f, 0.0f, 0.3f, 1.0f});
+            triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
+        }
+        draw_health_bar(e);
     };
     auto mass_render = [&, draw_health_bar](entity* e) {
-        triangle_r->setColor({1.0f, 0.0f, 0.0f, 1.0f});
-        triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
+        gore::IMG* img = &images["enemy.png"];
+        switch (e->img_id) {
+            case 0: img = &images["enemy.png"]; break;
+            case 1: img = &images["enemy_a1.png"]; break;
+            case 2: img = &images["enemy_w1.png"]; break;
+        }
+        if (*img) {
+            image_r->drawImage(*img, e->pos, e->dimen);
+        } else {
+            triangle_r->setColor({1.0f, 0.0f, 0.0f, 1.0f});
+            triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
+        }
         draw_health_bar(e);
     };
     auto blade_render = [&](entity* e) {
-        triangle_r->setColor({1.0f, 0.0f, 0.3f, 1.0f});
-        triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
+        gore::IMG& img = images["blade.png"];
+        if (img) {
+            float offset = blade_scroll;
+            float sx, sy, ex, ey;
+            switch (e->img_id) {
+                case 0: // top — scroll right: grid shifts right, enter from left
+                    sx = e->pos.x + offset - 10.0f; sy = e->pos.y;
+                    ex = e->pos.x + e->dimen.x;     ey = e->pos.y + e->dimen.y;
+                    break;
+                case 1: // bottom — scroll left: grid shifts left, enter from right
+                    sx = e->pos.x - offset;     sy = e->pos.y;
+                    ex = e->pos.x + e->dimen.x; ey = e->pos.y + e->dimen.y;
+                    break;
+                case 2: // left — scroll up: grid shifts up, enter from bottom
+                    sx = e->pos.x; sy = e->pos.y - offset;
+                    ex = e->pos.x + e->dimen.x; ey = e->pos.y + e->dimen.y;
+                    break;
+                default: // right (3) — scroll down: grid shifts down, enter from top
+                    sx = e->pos.x; sy = e->pos.y + offset - 10.0f;
+                    ex = e->pos.x + e->dimen.x; ey = e->pos.y + e->dimen.y;
+                    break;
+            }
+            for (float x = sx; x < ex; x += 10.0f)
+                for (float y = sy; y < ey; y += 10.0f)
+                    image_r->addImageVertex(img->tex, {x, y}, {10.0f, 10.0f});
+            image_r->drawBuffer();
+        } else {
+            triangle_r->setColor({1.0f, 0.0f, 0.3f, 1.0f});
+            triangle_r->drawQuad(e->pos, e->dimen.x, e->dimen.y);
+        }
     };
     auto motor_select = [&](entity* e, gore::vec2 start, gore::font* font) {
         uint32_t cost = (e->level + 1) * 100;
@@ -506,11 +724,13 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
     case entity_type::STRUCTURE:
         e.hp = 20;
         e.max_hp = 20;
+        e.render = wall_render;
         break;
     case entity_type::UNIT:
         e.update = unit_func;
         e.render = unit_render;
         e.hp = 10;
+        e.img_id = 0;
         break;
     case entity_type::BUTTON:
         // don't use this function for this
@@ -526,15 +746,18 @@ entity Game::constructEntity (gore::vec2 pos, gore::vec2 dimen, int imd_id, enti
         e.selection = motor_select;
         e.hp = 1000;
         e.max_hp = 1000;
+        e.img_id = 0;
       break;
     case entity_type::FARM:
         e.update = farm_func;
+        e.render = farm_render;
         e.hp = 20;
         e.max_hp = 20;
       break;
     case entity_type::MASS:
         e.update = enemy_func;
         e.render = mass_render;
+        e.img_id = 0;
         e.hp = 10;
       break;
     case entity_type::MOTOR_BLADE:
@@ -561,4 +784,40 @@ gore::vec2 Game::randomLocation () {
         case 2: return { 60.0f,   along   }; // left
         default:return { 4900.0f, along   }; // right
     }
+}
+
+void Game::addPopup (gore::vec2 pos, std::string text) {
+    static std::mt19937 rng(std::random_device{}());
+    static std::uniform_real_distribution<float> pos_offset(-15.0f, 15.0f);
+    gore::vec2 out_pos = { pos.x + pos_offset(rng), pos.y + pos_offset(rng)};
+    button button(out_pos, nullptr, text);
+    button.count = 0;
+    button.hp = 255;
+    popups.push_back(button);
+}
+
+void Game::renderPopups () {
+    gore::font* font = font_map.get("OpenSans-Regular.ttf");
+    for (size_t i = 0; i < popups.size();) {
+        static_font_r->setColor({1.0f, 1.0f, 1.0f, (float)popups[i].hp/255.0f});
+        static_font_r->drawText(popups[i].text, font, popups[i].pos.x, popups[i].pos.y, 10, eng->getDPI());
+        popups[i].count++;
+        popups[i].hp--;
+        if (popups[i].hp <= 0) {
+            popups.erase(popups.begin() + i);
+        } else {
+            i++;
+        }
+    }
+}
+
+void Game::renderBackground () {
+    gore::IMG& img = images["back.png"];
+    const float width = spatial_hashmap.getGridWidth();
+    for (float y = 50.0f; y < width; y += 50.0f) {
+        for (float x = 50.0f; x < width; x += 50.0f) {
+                image_r->addImageVertex(img->tex, {x, y}, {50.0f, 50.0f});
+        }
+    }
+    image_r->drawBuffer();
 }

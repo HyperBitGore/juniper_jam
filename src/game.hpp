@@ -1,5 +1,6 @@
 #pragma once
 #include "entity.hpp"
+#include "g_engine/rendering/font_renderer.hpp"
 #include "g_engine/rendering/image_renderer.hpp"
 #include "g_engine/rendering/primitive_renderer.hpp"
 #include "g_engine/util/shader.hpp"
@@ -7,6 +8,7 @@
 #include <filesystem>
 #include <g_engine/g_engine_2d.hpp>
 #include <memory>
+#include <unordered_map>
 #include "spatial_hashmap.hpp"
 #define BUTTON_TEXT_PT 16
 #define WINDOW_WIDTH 1024
@@ -44,6 +46,7 @@ class Game {
         gore::trianglerenderer* triangle_r;
         gore::trianglerenderer* static_triangle_r;
         gore::fontrenderer* font_r;
+        gore::fontrenderer* static_font_r;
         gore::linerenderer* line_r;
         // game loop vars
         double cam_move = 0.0;
@@ -53,7 +56,9 @@ class Game {
         std::deque<entity> enemies;
         int rpm = 200;
         bool motor_on = true;
+        float blade_scroll = 0.0f;
         std::deque<entity> blades;
+        std::vector<button> popups;
         entity* selected = nullptr;
         int64_t money;
         int64_t food;
@@ -88,11 +93,18 @@ class Game {
         void updateButtons (bool above_click);
         void renderButton (button b, gore::font* font);
         gore::vec2 randomLocation ();
+        void addPopup (gore::vec2 pos, std::string text);
+        void renderPopups ();
+        // images
+        std::unordered_map<std::string, gore::IMG> images;
+        void addImage (std::string image);
+        int edge_count = 0;
+        void renderBackground ();
     public:
         bool play = true;
         double delta = 0.0;
         gore::g_engine_2d* eng;
-        Game (std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::trianglerenderer>& triangle_r, std::unique_ptr<gore::trianglerenderer>& static_triangle_r, std::unique_ptr<gore::linerenderer>& line_r, std::unique_ptr<gore::fontrenderer>& font_r);
+        Game (std::unique_ptr<gore::imagerenderer>& image_r, std::unique_ptr<gore::trianglerenderer>& triangle_r, std::unique_ptr<gore::trianglerenderer>& static_triangle_r, std::unique_ptr<gore::linerenderer>& line_r, std::unique_ptr<gore::fontrenderer>& font_r, std::unique_ptr<gore::fontrenderer>& static_font_r);
         void loop();
         void new_game ();
         void save(std::string path);

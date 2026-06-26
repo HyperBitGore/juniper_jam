@@ -9,18 +9,15 @@ bool render_right_click_dropdown = false;
 //  - freezing was caused by std::vector reallocation invalidating raw entity* pointers stored in the spatial hashmap
 //    fixed by: using std::deque (stable pointers on push_back), inserting initial entities, and tracking selected through erases
 
-// TODO text popups
-// TODO art
-//  - unit
-//  - mass
-//  - farm
-//  - wall
-//  - motor
-//  - blades
-// TODO animation
-// TODO sound
 // TODO spawn waves
+// TODO finish saving/loading
+//      - make units sit on top of everything
+//      - keep jobs and targets intact?
 // TODO balance
+//      - make rpm consume money
+
+// TODO sound
+// TODO polish text and UI
 bool Game::game_loop() {
     if (eng->getKeyReleased(g_Escape)) {
         this->setGameMode(GAME_MODE::PAUSE_MENU);
@@ -114,7 +111,8 @@ bool Game::game_loop() {
             }
         }
     }
-    triangle_r->setColor({1.0f, 1.0f, 1.0f, 1.0f});
+    renderBackground();
+    eng->enable(GL_BLEND);
     auto drawSelectedOutline = [&](entity& e) {
         line_r->setColor({0.0f, 1.0f, 0.0f, 1.0f});
         const gore::vec2 pad = {5.0f, 5.0f};
@@ -229,6 +227,8 @@ bool Game::game_loop() {
     font_r->drawText("Mouse: " + std::to_string(m_pos.x) + ", " + std::to_string(m_pos.y), font, 0, 128, 24, eng->getDPI());
     // render entity selection bottom left
     renderSelectFrame();
+    renderPopups();
+    eng->disable(GL_BLEND);
     return above_click;
 }
 
